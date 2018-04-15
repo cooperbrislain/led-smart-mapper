@@ -18,7 +18,8 @@
 
 // FastLED defs
 #define DATA_PIN 7
-#define NUM_LEDS 23
+#define NUM_LEDS 100
+#define NUM_LIGHTS 5
 
 // Ethernet Vars
 byte mac[]    = {  0xD3, 0x3D, 0xB4, 0xF3, 0xF3, 0x3D };
@@ -36,16 +37,86 @@ Adafruit_MQTT_Subscribe brightness_3 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNA
 
 #define halt(s) { Serial.println(F( s )); while(1);  }
 
+class Light {
+    public:
+        CHSV color;
+
+        Light(CRGB *leds);
+
+        void turn_on();
+        void turn_off();
+        void toggle();
+        void set_brightness();
+        void set_hue();
+        void set_saturation();
+        void set_hsv();
+
+    private:
+        CRGB _leds;
+        int _num_leds;
+        int _offset;
+        int _last_brightness;
+        int _status;
+
+        void update();
+};
+
+Light::Light(CRGB &leds, num_leds) {
+    _color = CHSV(0,0,0);
+    _status = 0;
+    _num_leds = num_leds
+    update();
+}
+
+void Light::update() {
+    for (int i=offset; i<num_leds; i++) {
+        _leds[i] = color;
+    }
+}
+
+void Light::turn_on() {
+    color = CHSV(color.h, color.s, 255);
+    update();
+}
+
+void Light::turn_off() {
+    color = CHSV(color.h, color.s, 0);
+    update();
+}
+
+void Light::toggle() {
+    if (status == 1) {
+        turn_off();
+    } else {
+        turn_on();
+    }
+}
+
+void Light::set_brightness(int val) {
+    color = CHSV(color.h, color.s, val);
+    update();
+}
+
+void Light::set_hue(int val) {
+    color = CHSV(val, color.s, color.v);
+    update();
+}
+
+void Light::set_saturation(int val) {
+    color = CHSV(color.h, val, color.v);
+    update();
+}
+
+void Light::set_hsv(int hue, int sat, int val) {
+    color = CHSV(hue, sat, val);
+    update();
+}
 // FastLED Vars
 CRGB leds[NUM_LEDS];
+Light lights[NUM_LIGHTS];
 int count;
 
-#define L1_START 0
-#define L1_END 2
-#define L2_START 3
-#define L2_END 12
-#define L3_START 13
-#define L3_END 22
+
 
 void MQTT_connect();
 
@@ -53,7 +124,16 @@ void setup() {
     Serial.begin(115200);
     Serial.println(F("Starting up MQTT LED Controller"));
     delay(10);
-
+    lights[0].num_leds = 9;
+    lights[1].num_leds = 9;
+    lights[2].num_leds = 9;
+    lights[3].num_leds = 3;
+    lights[3].num_leds = 3;
+    int offset = 0;
+    for (int i=0;i<NUM_LIGHTS;i++) {
+        lights[i].offset = offset;
+        offset += lights[i].num_leds;
+    }
     FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
     for (int i=0; i<NUM_LEDS; i++) {
         leds[i] = CRGB::White;
@@ -110,28 +190,27 @@ void loop() {
             FastLED.show();
         }
         if(subscription == &brightness_1) {
-            for(int i=L1_START;i<=L1_END;i++) {
-                leds[i] = CHSV(0,0,String((char *)brightness_1.lastread).toInt());
-            }
+            lights[0].color.val = String((char *)brightness_1.lastread).toInt();
         }
         if(subscription == &brightness_2) {
-            for(int i=L2_START;i<=L2_END;i++) {
-                leds[i] = CHSV(0,0,String((char *)brightness_2.lastread).toInt());
-            }
+            lights[1].color.val = String((char *)brightness_2.lastread).toInt();
         }
         if(subscription == &brightness_3) {
-            for(int i=L3_START;i<=L3_END;i++) {
-                leds[i] = CHSV(0,0,String((char *)brightness_3.lastread).toInt());
-            }
+            lights[2].color.val = String((char *)brightness_3.lastread).toInt();
         }
         if(subscription == &color_1) {
-
+            lights[1].color = rgb2hsv_approximate(CRGB(String((char *)color_1.lastread).toInt()));
         }
         if(subscription == &color_2) {
 
         }
         if(subscription == &color_3) {
 
+        }
+        for(int i=0; i<NUM_LIGHTS; i++) {
+            for(int j=lights[i].offset; j<lights[i].offset+lights[i].num_leds;j++) {
+                leds[j] = lights[i].color;
+            }
         }
         FastLED.show();
     }
