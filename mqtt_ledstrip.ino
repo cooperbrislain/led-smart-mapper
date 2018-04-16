@@ -18,7 +18,7 @@
 
 // FastLED defs
 #define DATA_PIN 7
-#define NUM_LEDS 100
+#define NUM_LEDS 51
 #define NUM_LIGHTS 10
 
 // Ethernet Vars
@@ -28,12 +28,6 @@ EthernetClient client;
 
 Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO_KEY);
 Adafruit_MQTT_Subscribe onoffbutton = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/onoff");
-Adafruit_MQTT_Subscribe color_1 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/color_1");
-Adafruit_MQTT_Subscribe color_2 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/color_2");
-Adafruit_MQTT_Subscribe color_3 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/color_3");
-Adafruit_MQTT_Subscribe brightness_1 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/brightness_1");
-Adafruit_MQTT_Subscribe brightness_2 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/brightness_2");
-Adafruit_MQTT_Subscribe brightness_3 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/brightness_3");
 
 #define halt(s) { Serial.println(F( s )); while(1);  }
 
@@ -46,7 +40,7 @@ int count;
 class Light {
     public:
 
-        Light(CRGB* leds, int num_leds);
+        Light(String name, CRGB* leds, int num_leds);
         Light();
 
         void turn_on();
@@ -63,6 +57,10 @@ class Light {
         int _num_leds;
         int _last_brightness;
         int _status;
+        String _name;
+        Adafruit_MQTT_Subscribe _sub_hue;
+        Adafruit_MQTT_Subscribe _sub_brightness;
+        Adafruit_MQTT_Subscribe _sub_status;
 
         void update();
 };
@@ -72,13 +70,20 @@ Light::Light() {
     _status = 0;
     _num_leds = 0;
     _leds = 0;
+    _sub_hue = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/light/hue");
+    _sub_brightness = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/light/brightness");
+    _sub_status = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/light/status");
 }
 
-Light::Light(CRGB* leds, int num_leds) {
+Light::Light(String name, CRGB* leds, int num_leds) {
     _color = CRGB::Black;
     _status = 0;
     _num_leds = num_leds;
     _leds = leds;
+    _name = name;
+    _sub_hue = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/" + _name + "/hue");
+    _sub_brightness = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/" + _name + "/brightness");
+    _sub_status = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/" + _name + "/status");
 }
 
 void Light::update() {
@@ -141,20 +146,24 @@ void setup() {
     }
 
     // initialize lights;
-    lights[0] = Light(&leds[0], 4);
-    lights[1] = Light(&leds[4], 1);
-    lights[2] = Light(&leds[5], 1);
-    lights[3] = Light(&leds[6], 1);
-    lights[4] = Light(&leds[7], 1);
-    lights[5] = Light(&leds[8], 1);
-    lights[6] = Light(&leds[0], 17);
-    lights[7] = Light(&leds[26], 4);
-    lights[8] = Light(&leds[30], 17);
-    lights[9] = Light(&leds[47], 4);
+    lights[0] = Light("case", &leds[0], 4);
+    lights[1] = Light("rear_lower", &leds[4], 1);
+    lights[2] = Light("drawer_1", &leds[5], 1);
+    lights[3] = Light("drawer_1", &leds[6], 1);
+    lights[4] = Light("drawer_3", &leds[7], 1);
+    lights[5] = Light("drawer_4", &leds[8], 1);
+    lights[6] = Light("roof_passenger", &leds[9], 17);
+    lights[7] = Light("shelf", &leds[26], 4);
+    lights[8] = Light("roof_driver", &leds[30], 16);
+    lights[9] = Light("rear_upper", &leds[46], 4);
 
-    for (int i=0; i<NUM_LIGHTS; i++) {
-        lights[i].turn_on();
-        delay(1000);
+    for (int i=0; i<10; i++){
+        for (int i=0; i<NUM_LIGHTS; i++) {
+            lights[i].turn_on();
+            delay(50);
+            lights[i].turn_off();
+            delay(25);
+        }
     }
 
     delay(10);
@@ -171,13 +180,11 @@ void setup() {
         FastLED.show();
         delay(100);
     }
-    mqtt.subscribe(&onoffbutton);
-    mqtt.subscribe(&brightness_1);
-    mqtt.subscribe(&brightness_2);
-    mqtt.subscribe(&brightness_3);
-    mqtt.subscribe(&color_1);
-    mqtt.subscribe(&color_2);
-    mqtt.subscribe(&color_3);
+    for (int i=0; i<NUM_LIGHTS; i++) {
+        mqtt.subscribe(&lights[i].get_sub("hue"));
+        mqtt.subscribe(&lights[i].get_sub("brightness"));
+        mqtt.subscribe(&lights[i].get_sub("status"));
+    }
     for (int i=0; i<NUM_LIGHTS; i++) {
         lights[i].turn_off();
     }
