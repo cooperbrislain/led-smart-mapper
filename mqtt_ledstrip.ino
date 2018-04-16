@@ -19,7 +19,7 @@
 // FastLED defs
 #define DATA_PIN 7
 #define NUM_LEDS 100
-#define NUM_LIGHTS 3
+#define NUM_LIGHTS 10
 
 // Ethernet Vars
 byte mac[]    = {  0xD3, 0x3D, 0xB4, 0xF3, 0xF3, 0x3D };
@@ -135,13 +135,28 @@ void setup() {
     Serial.println(F("Starting up MQTT LED Controller"));
     delay(10);
     FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
-    lights[0] = Light(&leds[0],2);
-    lights[1] = Light(&leds[2],3);
-    lights[2] = Light(&leds[5],4);
+    for (int i=0; i<NUM_LEDS; i++) {
+        leds[i] = CRGB::Black;
+        FastLED.show();
+    }
+
+    // initialize lights;
+    lights[0] = Light(&leds[0], 4);
+    lights[1] = Light(&leds[4], 1);
+    lights[2] = Light(&leds[5], 1);
+    lights[3] = Light(&leds[6], 1);
+    lights[4] = Light(&leds[7], 1);
+    lights[5] = Light(&leds[8], 1);
+    lights[6] = Light(&leds[0], 17);
+    lights[7] = Light(&leds[26], 4);
+    lights[8] = Light(&leds[30], 17);
+    lights[9] = Light(&leds[47], 4);
+
     for (int i=0; i<NUM_LIGHTS; i++) {
         lights[i].turn_on();
         delay(1000);
     }
+
     delay(10);
     if (!Ethernet.begin(mac)) {
         Serial.println(F("Unable to configure Ethernet using DHCP"));
