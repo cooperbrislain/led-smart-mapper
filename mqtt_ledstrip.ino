@@ -8,7 +8,7 @@
 #include <SRAM.h>
 
 #define DATA_PIN 7 // signal for LED strip
-#define NUM_LEDS 51 // total number of LEDs for all strips
+#define NUM_LEDS 10 // total number of LEDs for all strips
 
 #define NUM_LIGHTS 10
 
@@ -82,16 +82,16 @@ void setup() {
 
     // initialize lights;
     // this really needs to read from a config file
-    lights[0] = Light("case", &leds[0], 4);
-    lights[1] = Light("rear_lower", &leds[4], 1);
-    lights[2] = Light("drawer_1", &leds[5], 1);
-    lights[3] = Light("drawer_1", &leds[6], 1);
-    lights[4] = Light("drawer_3", &leds[7], 1);
-    lights[5] = Light("drawer_4", &leds[8], 1);
-    lights[6] = Light("roof_passenger", &leds[9], 17);
-    lights[7] = Light("shelf", &leds[26], 4);
-    lights[8] = Light("roof_driver", &leds[30], 16);
-    lights[9] = Light("rear_upper", &leds[46], 4);
+    lights[0] = Light("case", &leds[0], 1);
+    lights[1] = Light("rear_lower", &leds[1], 1);
+    lights[2] = Light("drawer_1", &leds[2], 1);
+    lights[3] = Light("drawer_1", &leds[3], 1);
+    lights[4] = Light("drawer_3", &leds[4], 1);
+    lights[5] = Light("drawer_4", &leds[5], 1);
+    lights[6] = Light("roof_passenger", &leds[6], 1);
+    lights[7] = Light("shelf", &leds[7], 1);
+    lights[8] = Light("roof_driver", &leds[8], 1);
+    lights[9] = Light("rear_upper", &leds[9], 1);
 
     // turn the lights on one at a time
     for (int i=0; i<10; i++){
