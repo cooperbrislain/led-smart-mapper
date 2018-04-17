@@ -29,6 +29,7 @@ class Light {
         void set_saturation(int val);
         void set_rgb(CRGB color);
         void set_hsv(int status, int sat, int val);
+        void subscribe();
         const char* get_name();
 
     private:
@@ -47,11 +48,10 @@ class Light {
 // Ethernet Vars
 byte mac[] = { 0xDA, 0x3D, 0xB3, 0xF3, 0xF0, 0x3D };
 
-IPAddress mqtt_server(52, 5, 238, 97);
-
+const char* mqtt_server = "mqtt.spaceboycoop.com";
 const int mqtt_port = 1883;
-const char* mqtt_username = "cbrislain";
-const char* mqtt_key = "a95102c1e84b4edb82aea735a5e7f82c";
+const char* mqtt_username = "spaceboycoop";
+const char* mqtt_key = "r7rObnC6i2paWPxeEMuWiF";
 
 CRGB leds[NUM_LEDS];
 Light lights[NUM_LIGHTS];
@@ -84,17 +84,19 @@ void setup() {
 
     // initialize lights;
     // this really needs to read from a config file
-    /*lights[0] = Light("case", &leds[0], 1);
-    lights[1] = Light("rear_lower", &leds[1], 1);
-    lights[2] = Light("drawer_1", &leds[2], 1);
-    lights[3] = Light("drawer_1", &leds[3], 1);
-    lights[4] = Light("drawer_3", &leds[4], 1);
-    lights[5] = Light("drawer_4", &leds[5], 1);
-    lights[6] = Light("roof_passenger", &leds[6], 1);
-    lights[7] = Light("shelf", &leds[7], 1);
-    lights[8] = Light("roof_driver", &leds[8], 1);
-    lights[9] = Light("rear_upper", &leds[9], 1);
+    /*
+    lights[0] = Light("case", &leds[0], 2);
+    lights[1] = Light("rear-lower", &leds[2], 1);
+    lights[2] = Light("drawer-1", &leds[3], 1);
+    lights[3] = Light("drawer-2", &leds[4], 1);
+    lights[4] = Light("drawer-3", &leds[5], 1);
+    lights[5] = Light("drawer-4", &leds[6], 1);
+    lights[6] = Light("roof-passenger", &leds[7], 17);
+    lights[7] = Light("shelf", &leds[23], 4);
+    lights[8] = Light("roof-driver", &leds[27], 15);
+    lights[9] = Light("rear-upper", &leds[42], 3);
     */
+
     lights[0] = Light("test-0", &leds[0], 10);
     lights[1] = Light("test-1", &leds[0], 5);
     lights[2] = Light("test-2", &leds[5], 5);
@@ -156,8 +158,8 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
             }
         }
     }
-    if(strcmp(topic,"cbrislain/feeds/color") == 0) {
-        Serial.println("Message received from cbrislain/feeds/color");
+    if(strcmp(topic,"deliverator/lights/color") == 0) {
+        Serial.println("Message received from deliverator/lights/color");
         CRGB payload_color;
         sscanf((char *)payload, "#%2x%2x%2x", &payload_color.r, &payload_color.g, &payload_color.b);
         Serial.println("Changing light[1]");
@@ -182,6 +184,20 @@ Light::Light(String name, CRGB* leds, int num_leds) {
     _num_leds = num_leds;
     _leds = leds;
     _name = name;
+}
+
+void Light::subscribe() {
+    if (mqtt_client.connected()) {
+        char* feed;
+        sprintf(feed, "deliverator/lights/%s/color", _name.c_str());
+        mqtt_client.subscribe(feed);
+        sprintf(feed, "deliverator/lights/%s/status", _name.c_str());
+        mqtt_client.subscribe(feed);
+        sprintf(feed, "deliverator/lights/%s/brightness", _name.c_str());
+        mqtt_client.subscribe(feed);
+        sprintf(feed, "deliverator/lights/%s/hue", _name.c_str());
+        mqtt_client.subscribe(feed);
+    }
 }
 
 void Light::update() {
@@ -246,22 +262,17 @@ void reconnect() {
         if (mqtt_client.connect("arduinoClient",mqtt_username,mqtt_key)) {
             Serial.println("connected");
             // Once connected, publish an announcement...
-            if(!mqtt_client.publish("cbrislain/feeds/onoff","OFF")) {
+            if(!mqtt_client.publish("deliverator/lights/color","OFF")) {
                Serial.println("Failed to publish");
             }
             // ... and resubscribe
-            if(!mqtt_client.subscribe("cbrislain/feeds/color")) {
-                Serial.println("Subscribe to cbrislain/feeds/color failed.");
+            if(!mqtt_client.subscribe("deliverator/lights/color")) {
+                Serial.println("Subscribe to deliverator/lights/color failed.");
             }
             char *name;
             for(int i=0; i<NUM_LIGHTS; i++) {
-                Serial.print("Subscribing to feeds for light:");
-                name = (char *)lights[i].get_name();
-                Serial.println(name);
-                char feed[50];
-                sprintf(feed, "cbrislain/feeds/%s.color", name);
-                Serial.println(feed);
-                mqtt_client.subscribe((char *)feed);
+                Serial.print("Subscribine to feeds for light:");
+                lights[i].subscribe();
             }
         } else {
             Serial.print("failed, rc=");
