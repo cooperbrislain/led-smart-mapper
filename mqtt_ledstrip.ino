@@ -187,16 +187,40 @@ Light::Light(String name, CRGB* leds, int num_leds) {
 }
 
 void Light::subscribe() {
+    Serial.print("Subscribing to feeds for light:");
+    Serial.println(_name);
     if (mqtt_client.connected()) {
-        char* feed;
+        char feed[32];
         sprintf(feed, "deliverator/lights/%s/color", _name.c_str());
-        mqtt_client.subscribe(feed);
+        if(!mqtt_client.subscribe(feed)) {
+            Serial.print("Failed to subscribe to feed: ");
+        } else {
+            Serial. print("Subscribed to feed: ");
+        }
+        Serial.println(feed);
         sprintf(feed, "deliverator/lights/%s/status", _name.c_str());
-        mqtt_client.subscribe(feed);
+        if(!mqtt_client.subscribe(feed)) {
+            Serial.print("Failed to subscribe to feed: ");
+        } else {
+            Serial. print("Subscribed to feed: ");
+        }
+        Serial.println(feed);
         sprintf(feed, "deliverator/lights/%s/brightness", _name.c_str());
-        mqtt_client.subscribe(feed);
+        if(!mqtt_client.subscribe(feed)) {
+            Serial.print("Failed to subscribe to feed: ");
+        } else {
+            Serial. print("Subscribed to feed: ");
+        }
+        Serial.println(feed);
         sprintf(feed, "deliverator/lights/%s/hue", _name.c_str());
-        mqtt_client.subscribe(feed);
+        if(!mqtt_client.subscribe(feed)) {
+            Serial.print("Failed to subscribe to feed: ");
+        } else {
+            Serial. print("Subscribed to feed: ");
+        }
+        Serial.println(feed);
+    } else {
+        Serial.println("Not Connected");
     }
 }
 
@@ -271,7 +295,6 @@ void reconnect() {
             }
             char *name;
             for(int i=0; i<NUM_LIGHTS; i++) {
-                Serial.print("Subscribine to feeds for light:");
                 lights[i].subscribe();
             }
         } else {
