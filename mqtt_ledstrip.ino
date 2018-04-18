@@ -7,9 +7,9 @@
 #include "FastLED.h"
 
 #define DATA_PIN 7 // signal for LED strip
-#define NUM_LEDS 10 // total number of LEDs for all strips
+#define NUM_LEDS 51 // total number of LEDs for all strips
 
-#define NUM_LIGHTS 3
+#define NUM_LIGHTS 10
 
 #define halt(s) { Serial.println(F( s )); while(1);  }
 
@@ -21,28 +21,33 @@ class Light {
         Light(String name, CRGB* leds, int num_leds);
         Light();
 
+        const char* get_name();
         void turn_on();
         void turn_off();
         void toggle();
+        void set_hue(int val);
         void set_brightness(int val);
-        void set_status(int val);
         void set_saturation(int val);
-        void set_rgb(CRGB color);
-        void set_hsv(int status, int sat, int val);
-        void subscribe();
-        const char* get_name();
+        void set_rgb(CRGB);
+        void set_hsv(int hue, int sat, int val);
+        void set_hsv(CHSV);
+        CRGB get_rgb();
+        CHSV get_hsv();
+        void initialize();
 
     private:
         CRGB* _leds;
         CRGB _color;
         int _num_leds;
         int _last_brightness;
-        int _status;
+        bool _onoff;
         String _name;
         String _feed_hue;
         String _feed_brightness;
         String _feed_status;
         void update();
+        void add_to_homebridge();
+        void subscribe(String);
 };
 
 // Ethernet Vars
@@ -84,22 +89,29 @@ void setup() {
 
     // initialize lights;
     // this really needs to read from a config file
-    /*
-    lights[0] = Light("case", &leds[0], 2);
-    lights[1] = Light("rear-lower", &leds[2], 1);
-    lights[2] = Light("drawer-1", &leds[3], 1);
-    lights[3] = Light("drawer-2", &leds[4], 1);
-    lights[4] = Light("drawer-3", &leds[5], 1);
-    lights[5] = Light("drawer-4", &leds[6], 1);
-    lights[6] = Light("roof-passenger", &leds[7], 17);
-    lights[7] = Light("shelf", &leds[23], 4);
-    lights[8] = Light("roof-driver", &leds[27], 15);
-    lights[9] = Light("rear-upper", &leds[42], 3);
-    */
 
-    lights[0] = Light("test-0", &leds[0], 10);
-    lights[1] = Light("test-1", &leds[0], 5);
-    lights[2] = Light("test-2", &leds[5], 5);
+    lights[0] = Light("case", &leds[0], 4);
+    lights[1] = Light("rear-lower", &leds[4], 1);
+    lights[2] = Light("drawer-1", &leds[5], 1);
+    lights[3] = Light("drawer-2", &leds[6], 1);
+    lights[4] = Light("drawer-3", &leds[7], 1);
+    lights[5] = Light("drawer-4", &leds[8], 1);
+    lights[6] = Light("roof-passenger", &leds[9], 17);
+    lights[7] = Light("shelf", &leds[26], 4);
+    lights[8] = Light("roof-driver", &leds[30], 16);
+    lights[9] = Light("rear-upper", &leds[46], 3);
+
+    /* for testing */
+    /*lights[0] = Light("case", &leds[0], 2);
+    lights[1] = Light("rear-lower", &leds[1], 1);
+    lights[2] = Light("drawer-1", &leds[2], 1);
+    lights[3] = Light("drawer-2", &leds[3], 1);
+    lights[4] = Light("drawer-3", &leds[4], 1);
+    lights[5] = Light("drawer-4", &leds[5], 1);
+    lights[6] = Light("roof-passenger", &leds[0], 5);
+    lights[7] = Light("shelf", &leds[5], 5);
+    lights[8] = Light("roof-driver", &leds[3], 5);
+    lights[9] = Light("rear-upper", &leds[7], 3);*/
 
     // turn the lights on one at a time
     for (int i=0; i<NUM_LIGHTS; i++) {
@@ -142,19 +154,44 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     Serial.print(topic);
     Serial.print("] ");
     payload[length] = '\0';
-    char* tmp = strtok(topic,"/.");
-    tmp = strtok(NULL,"/.");
-    char* name = strtok(NULL,"/.");
-    char* prop = strtok(NULL,"/.");
+    char* tmp = strtok(topic,"/");
+    tmp = strtok(NULL,"/");
+    char* name = strtok(NULL,"/");
+    char* prop = strtok(NULL,"/");
     Serial.println(name);
     Serial.println(prop);
     Serial.println((char *)payload);
     for (int i=0; i<NUM_LIGHTS; i++) {
-        if(strcmp(name, lights[i].get_name()) == 0) {
-            if(strcmp(prop, "color") == 0) {
-                CRGB payload_color;
-                sscanf((char *)payload, "#%2x%2x%2x", &payload_color.r, &payload_color.g, &payload_color.b);
-                lights[i].set_rgb(payload_color);
+        if (strcmp(name, lights[i].get_name()) == 0) {
+            if (strcmp(prop, "On") == 0) {
+                if(strcmp((char *)payload, "true") == 0) {
+                    Serial.println("Turning On");
+                    lights[i].turn_on();
+                } else {
+                    Serial.println("Turning Off");
+                    lights[i].turn_off();
+                }
+            }
+            if (strcmp(prop, "Hue") == 0) {
+                int val = atoi((char *)payload);
+                val = val * 255 / 360;
+                Serial.print("Setting hue to ");
+                Serial.println(val);
+                lights[i].set_hue(val);
+            }
+            if (strcmp(prop, "Brightness") == 0) {
+                int val = atoi((char *)payload);
+                val = val * 255 / 100;
+                Serial.print("Setting brightness to ");
+                Serial.println(val);
+                lights[i].set_brightness(val);
+            }
+            if (strcmp(prop, "Saturation") == 0) {
+                int val = atoi((char *)payload);
+                val = val * 255 / 100;
+                Serial.print("Setting saturation to ");
+                Serial.println(val);
+                lights[i].set_saturation(val);
             }
         }
     }
@@ -165,117 +202,6 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
         Serial.println("Changing light[1]");
         lights[1].set_rgb(payload_color);
     }
-}
-
-Light::Light() {
-    _color = CRGB::Black;
-    _status = 0;
-    _num_leds = 0;
-    _leds = 0;
-    _feed_status = "";
-    _feed_brightness = "";
-    _feed_status = "";
-    _name = "light";
-}
-
-Light::Light(String name, CRGB* leds, int num_leds) {
-    _color = CRGB::Black;
-    _status = 0;
-    _num_leds = num_leds;
-    _leds = leds;
-    _name = name;
-}
-
-void Light::subscribe() {
-    Serial.print("Subscribing to feeds for light:");
-    Serial.println(_name);
-    if (mqtt_client.connected()) {
-        char feed[32];
-        sprintf(feed, "deliverator/lights/%s/color", _name.c_str());
-        if(!mqtt_client.subscribe(feed)) {
-            Serial.print("Failed to subscribe to feed: ");
-        } else {
-            Serial. print("Subscribed to feed: ");
-        }
-        Serial.println(feed);
-        sprintf(feed, "deliverator/lights/%s/status", _name.c_str());
-        if(!mqtt_client.subscribe(feed)) {
-            Serial.print("Failed to subscribe to feed: ");
-        } else {
-            Serial. print("Subscribed to feed: ");
-        }
-        Serial.println(feed);
-        sprintf(feed, "deliverator/lights/%s/brightness", _name.c_str());
-        if(!mqtt_client.subscribe(feed)) {
-            Serial.print("Failed to subscribe to feed: ");
-        } else {
-            Serial. print("Subscribed to feed: ");
-        }
-        Serial.println(feed);
-        sprintf(feed, "deliverator/lights/%s/hue", _name.c_str());
-        if(!mqtt_client.subscribe(feed)) {
-            Serial.print("Failed to subscribe to feed: ");
-        } else {
-            Serial. print("Subscribed to feed: ");
-        }
-        Serial.println(feed);
-    } else {
-        Serial.println("Not Connected");
-    }
-}
-
-void Light::update() {
-    for (int i=0; i<_num_leds; i++) {
-        _leds[i] = _color;
-    }
-    FastLED.show();
-}
-
-void Light::turn_on() {
-    _color = CRGB::White;
-    update();
-}
-
-void Light::turn_off() {
-    _color = CRGB::Black;
-    update();
-}
-
-void Light::toggle() {
-    if (_status == 1) {
-        turn_off();
-    } else {
-        turn_on();
-    }
-}
-
-void Light::set_rgb(CRGB color) {
-    _color = color;
-    update();
-}
-
-void Light::set_brightness(int val) {
-    _color = CHSV(255,0,val);
-    update();
-}
-
-void Light::set_status(int val) {
-    _color = CHSV(val, 255, 255);
-    update();
-}
-
-void Light::set_saturation(int val) {
-    _color = CHSV(255, val, 255);
-    update();
-}
-
-void Light::set_hsv(int status, int sat, int val) {
-    _color = CHSV(status, sat, val);
-    update();
-}
-
-const char* Light::get_name() {
-    return _name.c_str();
 }
 
 void reconnect() {
@@ -295,7 +221,7 @@ void reconnect() {
             }
             char *name;
             for(int i=0; i<NUM_LIGHTS; i++) {
-                lights[i].subscribe();
+                lights[i].initialize();
             }
         } else {
             Serial.print("failed, rc=");
@@ -305,4 +231,148 @@ void reconnect() {
             delay(5000);
         }
     }
+}
+
+// Light member functions
+
+Light::Light() {
+    _color = CRGB::Black;
+    _onoff = 0;
+    _num_leds = 0;
+    _leds = 0;
+    _name = "light";
+}
+
+Light::Light(String name, CRGB* leds, int num_leds) {
+    _color = CRGB::Black;
+    _onoff = 0;
+    _num_leds = num_leds;
+    _leds = leds;
+    _name = name;
+}
+
+void Light::subscribe(String prop) {
+    char tmp[128];
+    sprintf(tmp, "deliverator/lights/%s/%s", _name.c_str(), prop.c_str());
+    String feed = tmp;
+    if(!mqtt_client.subscribe(feed.c_str())) {
+        Serial.print("Failed to subscribe to feed: ");
+        Serial.println(feed);
+    } else {
+        Serial. print("Subscribed to feed: ");
+        Serial.println(feed);
+    }
+}
+
+void Light::initialize() {
+    if (mqtt_client.connected()) {
+        Serial.print("Subscribing to feeds for light:");
+        Serial.println(_name);
+        subscribe("On");
+        subscribe("Hue");
+        subscribe("Saturation");
+        subscribe("Brightness");
+        add_to_homebridge();
+    } else {
+        Serial.println("Not Connected");
+    }
+}
+
+void Light::add_to_homebridge() {
+    Serial.print("Adding light to homebridge ");
+    Serial.println(_name);
+    char payload[128];
+    sprintf(payload, "{ \"name\": \"%s\", \"Service\": \"Lightbulb\", \"Hue\": \"0\", \"Saturation\": \"100\", \"Brightness\": \"50\" }", _name.c_str());
+    byte length = (byte)strlen(payload);
+    if(!mqtt_client.publish("homebridge/to/add", payload, length)) {
+        Serial.println("Failed");
+    } else {
+        Serial.println("Light added!");
+    }
+    sprintf(payload, "{\"name\": \"%s\", \"reachable\": true}", _name.c_str());
+    byte length = (byte)strlen(payload);
+    if(!mqtt_client.publish("homebridge/to/set/reachability")) {
+        Serial.println("Reachability restored");
+    }
+}
+
+void Light::update() {
+    for (int i=0; i<_num_leds; i++) {
+        _leds[i] = _color;
+    }
+    FastLED.show();
+}
+
+void Light::turn_on() {
+    if(!_onoff) {
+        _color = CRGB::White;
+        _onoff = 1;
+        update();
+    }
+}
+
+void Light::turn_off() {
+    if(_onoff) {
+        _color = CRGB::Black;
+        _onoff = 0;
+        update();
+    }
+}
+
+void Light::toggle() {
+    if (_onoff == 1) {
+        turn_off();
+        _onoff = 0;
+    } else {
+        turn_on();
+        _onoff = 1;
+    }
+}
+
+void Light::set_rgb(CRGB color) {
+    _color = color;
+    update();
+}
+
+void Light::set_hue(int val) {
+    CHSV hsv_color = get_hsv();
+    hsv_color.h = val;
+    set_hsv(hsv_color);
+    update();
+}
+
+void Light::set_brightness(int val) {
+    CHSV hsv_color = get_hsv();
+    hsv_color.v = val;
+    set_hsv(hsv_color);
+    update();
+}
+
+void Light::set_saturation(int val) {
+    CHSV hsv_color = get_hsv();
+    hsv_color.s = val;
+    set_hsv(hsv_color);
+    update();
+}
+
+void Light::set_hsv(int hue, int sat, int val) {
+    _color = CHSV(hue, sat, val);
+    update();
+}
+
+void Light::set_hsv(CHSV input_color) {
+    _color = input_color;
+    update();
+}
+
+CHSV Light::get_hsv() {
+    return rgb2hsv_approximate(_color);
+}
+
+CRGB Light::get_rgb() {
+    return _color;
+}
+
+const char* Light::get_name() {
+    return _name.c_str();
 }
