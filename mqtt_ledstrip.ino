@@ -290,8 +290,8 @@ void Light::add_to_homebridge() {
         Serial.println("Light added!");
     }
     sprintf(payload, "{\"name\": \"%s\", \"reachable\": true}", _name.c_str());
-    byte length = (byte)strlen(payload);
-    if(!mqtt_client.publish("homebridge/to/set/reachability")) {
+    length = (byte)strlen(payload);
+    if(!mqtt_client.publish("homebridge/to/set/reachability", payload, length)) {
         Serial.println("Reachability restored");
     }
 }
