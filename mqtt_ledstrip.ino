@@ -31,9 +31,12 @@ class Light {
         void set_rgb(CRGB);
         void set_hsv(int hue, int sat, int val);
         void set_hsv(CHSV);
+        void set_program(int prog_id);
         CRGB get_rgb();
         CHSV get_hsv();
         void initialize();
+        void update();
+
 
     private:
         CRGB* _leds;
@@ -42,10 +45,8 @@ class Light {
         int _last_brightness;
         bool _onoff;
         String _name;
-        String _feed_hue;
-        String _feed_brightness;
-        String _feed_status;
-        void update();
+        int _count;
+        void *_prog();
         void add_to_homebridge();
         void subscribe(String);
 };
@@ -147,6 +148,9 @@ void loop() {
         reconnect();
     }
     mqtt_client.loop();
+    for(int i=0; i<NUM_LIGHTS; i++) {
+        lights[i].update();
+    }
 }
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length) {
@@ -241,6 +245,8 @@ Light::Light() {
     _num_leds = 0;
     _leds = 0;
     _name = "light";
+    _prog() = _prog_solid();
+    _count = 0;
 }
 
 Light::Light(String name, CRGB* leds, int num_leds) {
@@ -249,6 +255,8 @@ Light::Light(String name, CRGB* leds, int num_leds) {
     _num_leds = num_leds;
     _leds = leds;
     _name = name;
+    _prog() = _prog_solid();
+    _count = 0;
 }
 
 void Light::subscribe(String prop) {
@@ -297,10 +305,9 @@ void Light::add_to_homebridge() {
 }
 
 void Light::update() {
-    for (int i=0; i<_num_leds; i++) {
-        _leds[i] = _color;
-    }
+    _prog();
     FastLED.show();
+    _count++;
 }
 
 void Light::turn_on() {
@@ -375,4 +382,23 @@ CRGB Light::get_rgb() {
 
 const char* Light::get_name() {
     return _name.c_str();
+}
+
+// programs
+
+void Light::_prog_solid() {
+    for (int i=0; i<_num_leds; i++) {
+        _leds[i] = _color;
+    }
+}
+
+void Light::_prog_fade() {
+    for(int i=0; i<_num_leds; i++) {
+        _leds[i].fadeToBlackBy(20);
+    }
+}
+
+void Light::_prog_chase() {
+    _prog_fade();
+    _leds[_count%_num_leds] = _color;
 }
