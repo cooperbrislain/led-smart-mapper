@@ -46,10 +46,9 @@ class Light {
         bool _onoff;
         String _name;
         int _count;
-        int (*_prog)();
         void add_to_homebridge();
         void subscribe(String);
-
+        int (Light::*_prog)();
         int _prog_solid();
         int _prog_fade();
         int _prog_chase();
@@ -227,7 +226,6 @@ void reconnect() {
             if(!mqtt_client.subscribe("deliverator/lights/color")) {
                 Serial.println("Subscribe to deliverator/lights/color failed.");
             }
-            char *name;
             for(int i=0; i<NUM_LIGHTS; i++) {
                 lights[i].initialize();
             }
@@ -249,7 +247,7 @@ Light::Light() {
     _num_leds = 0;
     _leds = 0;
     _name = "light";
-    _prog = &this->_prog_solid;
+    _prog = &Light::_prog_chase;
     _count = 0;
 }
 
@@ -259,20 +257,19 @@ Light::Light(String name, CRGB* leds, int num_leds) {
     _num_leds = num_leds;
     _leds = leds;
     _name = name;
-    _prog = &this->_prog_solid;
+    _prog = &Light::_prog_chase;
     _count = 0;
 }
 
 void Light::subscribe(String prop) {
-    char tmp[128];
-    sprintf(tmp, "deliverator/lights/%s/%s", _name.c_str(), prop.c_str());
-    String feed = tmp;
-    if(!mqtt_client.subscribe(feed.c_str())) {
-        Serial.print("Failed to subscribe to feed: ");
-        Serial.println(feed);
+    char topic[128];
+    sprintf(topic, "deliverator/lights/%s/%s", _name.c_str(), prop.c_str());
+    if (!mqtt_client.subscribe(topic)) {
+        Serial.print("Failed to subscribe to topic: ");
+        Serial.println(topic);
     } else {
-        Serial. print("Subscribed to feed: ");
-        Serial.println(feed);
+        Serial.print("Subscribed to topic: ");
+        Serial.println(topic);
     }
 }
 
@@ -301,7 +298,7 @@ void Light::add_to_homebridge() {
     } else {
         Serial.println("Light added!");
     }
-    sprintf(payload, "{\"name\": \"%s\", \"reachable\": true}", _name.c_str());
+    sprintf(payload, "{\"name\": \"%s\", \"service_name\": \"light\", \"reachable\": true}", _name.c_str());
     length = (byte)strlen(payload);
     if(!mqtt_client.publish("homebridge/to/set/reachability", payload, length)) {
         Serial.println("Reachability restored");
@@ -309,7 +306,7 @@ void Light::add_to_homebridge() {
 }
 
 void Light::update() {
-    _prog();
+    (this->*_prog)();
     FastLED.show();
     _count++;
 }
@@ -394,15 +391,18 @@ int Light::_prog_solid() {
     for (int i=0; i<_num_leds; i++) {
         _leds[i] = _color;
     }
+    return 0;
 }
 
 int Light::_prog_fade() {
     for(int i=0; i<_num_leds; i++) {
         _leds[i].fadeToBlackBy(20);
     }
+    return 0;
 }
 
 int Light::_prog_chase() {
     _prog_fade();
     _leds[_count%_num_leds] = _color;
+    return 0;
 }
