@@ -90,7 +90,7 @@ void setup() {
 
     // initialize lights;
     // this really needs to read from a config file
-
+    /*
     lights[0] = Light("case", &leds[0], 4);
     lights[1] = Light("rear-lower", &leds[4], 1);
     lights[2] = Light("drawer-1", &leds[5], 1);
@@ -101,9 +101,9 @@ void setup() {
     lights[7] = Light("shelf", &leds[26], 4);
     lights[8] = Light("roof-driver", &leds[30], 16);
     lights[9] = Light("rear-upper", &leds[46], 3);
-
-    /* for testing */
-    /*lights[0] = Light("case", &leds[0], 2);
+    */
+    //for testing
+    lights[0] = Light("case", &leds[0], 2);
     lights[1] = Light("rear-lower", &leds[1], 1);
     lights[2] = Light("drawer-1", &leds[2], 1);
     lights[3] = Light("drawer-2", &leds[3], 1);
@@ -112,7 +112,7 @@ void setup() {
     lights[6] = Light("roof-passenger", &leds[0], 5);
     lights[7] = Light("shelf", &leds[5], 5);
     lights[8] = Light("roof-driver", &leds[3], 5);
-    lights[9] = Light("rear-upper", &leds[7], 3);*/
+    lights[9] = Light("rear-upper", &leds[7], 3);
 
     // turn the lights on one at a time
     for (int i=0; i<NUM_LIGHTS; i++) {
