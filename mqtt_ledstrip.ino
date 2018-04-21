@@ -46,13 +46,13 @@ class Light {
         bool _onoff;
         String _name;
         int _count;
-        void *_prog();
+        int *_prog();
         void add_to_homebridge();
         void subscribe(String);
 
-        void _prog_solid();
-        void _prog_fade();
-        void _prog_chase();
+        int _prog_solid();
+        int _prog_fade();
+        int _prog_chase();
 };
 
 // Ethernet Vars
@@ -249,7 +249,7 @@ Light::Light() {
     _num_leds = 0;
     _leds = 0;
     _name = "light";
-    _prog = *_prog_solid;
+    _prog = _prog_solid();
     _count = 0;
 }
 
@@ -259,7 +259,7 @@ Light::Light(String name, CRGB* leds, int num_leds) {
     _num_leds = num_leds;
     _leds = leds;
     _name = name;
-    _prog = *_prog_solid;
+    _prog = _prog_solid();
     _count = 0;
 }
 
@@ -390,19 +390,19 @@ const char* Light::get_name() {
 
 // programs
 
-void Light::_prog_solid() {
+int Light::_prog_solid() {
     for (int i=0; i<_num_leds; i++) {
         _leds[i] = _color;
     }
 }
 
-void Light::_prog_fade() {
+int Light::_prog_fade() {
     for(int i=0; i<_num_leds; i++) {
         _leds[i].fadeToBlackBy(20);
     }
 }
 
-void Light::_prog_chase() {
+int Light::_prog_chase() {
     _prog_fade();
     _leds[_count%_num_leds] = _color;
 }
