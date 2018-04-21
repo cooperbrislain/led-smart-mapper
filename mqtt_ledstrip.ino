@@ -46,7 +46,7 @@ class Light {
         bool _onoff;
         String _name;
         int _count;
-        int *_prog();
+        int (*_prog)();
         void add_to_homebridge();
         void subscribe(String);
 
