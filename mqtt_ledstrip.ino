@@ -46,9 +46,13 @@ class Light {
         bool _onoff;
         String _name;
         int _count;
-        void *_prog();
+        void &_prog();
         void add_to_homebridge();
         void subscribe(String);
+
+        void _prog_solid();
+        void _prog_fade();
+        void _prog_chase();
 };
 
 // Ethernet Vars
@@ -245,7 +249,7 @@ Light::Light() {
     _num_leds = 0;
     _leds = 0;
     _name = "light";
-    _prog() = _prog_solid();
+    _prog() = *_prog_solid();
     _count = 0;
 }
 
@@ -255,7 +259,7 @@ Light::Light(String name, CRGB* leds, int num_leds) {
     _num_leds = num_leds;
     _leds = leds;
     _name = name;
-    _prog() = _prog_solid();
+    _prog() = *_prog_solid();
     _count = 0;
 }
 
