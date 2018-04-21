@@ -249,7 +249,7 @@ Light::Light() {
     _num_leds = 0;
     _leds = 0;
     _name = "light";
-    _prog = *_prog_solid;
+    _prog = *_prog_solid();
     _count = 0;
 }
 
@@ -259,7 +259,7 @@ Light::Light(String name, CRGB* leds, int num_leds) {
     _num_leds = num_leds;
     _leds = leds;
     _name = name;
-    _prog = *_prog_solid;
+    _prog = *_prog_solid();
     _count = 0;
 }
 
