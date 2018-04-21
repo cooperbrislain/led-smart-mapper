@@ -42,7 +42,7 @@ class Light {
         CRGB* _leds;
         CRGB _color;
         int _num_leds;
-        int _last_brightness;
+        int _program;
         bool _onoff;
         String _name;
         int _count;
@@ -200,6 +200,12 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
                 Serial.println(val);
                 lights[i].set_saturation(val);
             }
+            if (strcmp(prop, "Program") == 0) {
+                int val = atoi((char *)payload);
+                Serial.print("Setting program to ");
+                Serial.println(val);
+                lights[i].set_program(val);
+            }
         }
     }
     if(strcmp(topic,"deliverator/lights/color") == 0) {
@@ -281,6 +287,7 @@ void Light::initialize() {
         subscribe("Hue");
         subscribe("Saturation");
         subscribe("Brightness");
+        subscribe("Program");
         add_to_homebridge();
     } else {
         Serial.println("Not Connected");
@@ -291,7 +298,7 @@ void Light::add_to_homebridge() {
     Serial.print("Adding light to homebridge ");
     Serial.println(_name);
     char payload[128];
-    sprintf(payload, "{ \"name\": \"%s\", \"Service\": \"Lightbulb\", \"Hue\": \"0\", \"Saturation\": \"100\", \"Brightness\": \"50\" }", _name.c_str());
+    sprintf(payload, "{ \"name\": \"%s\", \"Service\": \"Lightbulb\", \"Hue\": \"0\", \"Saturation\": \"100\", \"Brightness\": \"50\", \"Program\": \"0\" }", _name.c_str());
     byte length = (byte)strlen(payload);
     if(!mqtt_client.publish("homebridge/to/add", payload, length)) {
         Serial.println("Failed");
@@ -361,6 +368,10 @@ void Light::set_saturation(int val) {
     hsv_color.s = val;
     set_hsv(hsv_color);
     update();
+}
+
+void Light::set_program(int val) {
+    _program = val;
 }
 
 void Light::set_hsv(int hue, int sat, int val) {
