@@ -5,13 +5,19 @@
 #include <Dhcp.h>
 #include <PubSubClient.h>
 #include "FastLED.h"
+#include "config.h"
 
-#define DATA_PIN 7 // signal for LED strip
-#define NUM_LEDS 51 // total number of LEDs for all strips
+#define DATA_PIN 50 // signal for LED strip
+#define CLOCK_PIN 52
+#define NUM_LEDS 74 // total number of LEDs for all strips
 
 #define NUM_LIGHTS 10
 
 #define halt(s) { Serial.println(F( s )); while(1);  }
+
+const char *wifi_ssid = WIFI_SSID;
+const char *wifi_pass = WIFI_PASSWORD;
+
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length);
 void reconnect();
