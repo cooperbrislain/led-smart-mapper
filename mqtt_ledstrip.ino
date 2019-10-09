@@ -51,10 +51,10 @@ class Light {
         bool _onoff;
         String _name;
         int _count;
-        int (*_prog)();
         int _prog_solid();
         int _prog_chase();
         int _prog_fade();
+        int (Light::*_prog)();
         void add_to_homebridge();
         void subscribe(String);
 };
@@ -253,7 +253,7 @@ Light::Light() {
     _num_leds = 0;
     _leds = 0;
     _name = "light";
-    _prog = &_prog_solid;
+    _prog = &Light::_prog_solid;
     _count = 0;
 }
 
@@ -263,7 +263,7 @@ Light::Light(String name, CRGB* leds, int num_leds) {
     _num_leds = num_leds;
     _leds = leds;
     _name = name;
-    _prog = &_prog_solid;
+    _prog = &Light::_prog_solid;
     _count = 0;
 }
 
@@ -313,7 +313,7 @@ void Light::add_to_homebridge() {
 }
 
 void Light::update() {
-    _prog();
+    (this->*_prog)();
     FastLED.show();
     _count++;
 }
