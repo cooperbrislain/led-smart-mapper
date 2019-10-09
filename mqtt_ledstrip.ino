@@ -16,7 +16,7 @@
 #define halt(s) { Serial.println(F( s )); while(1);  }
 
 const char *wifi_ssid = WIFI_SSID;
-const char *wifi_pass = WIFI_PASSWORD;
+const char *wifi_pass = WIFI_PASS;
 
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length);
@@ -62,10 +62,10 @@ class Light {
 // Ethernet Vars
 byte mac[] = { 0xDA, 0x3D, 0xB3, 0xF3, 0xF0, 0x3D };
 
-const char* mqtt_server = "mqtt.spaceboycoop.com";
+const char* mqtt_server = MQTT_HOST;
 const int mqtt_port = 1883;
-const char* mqtt_username = "spaceboycoop";
-const char* mqtt_key = "r7rObnC6i2paWPxeEMuWiF";
+const char* mqtt_username = MQTT_USER;
+const char* mqtt_key = MQTT_PASS;
 
 CRGB leds[NUM_LEDS];
 Light lights[NUM_LIGHTS];
@@ -225,7 +225,7 @@ void reconnect() {
             Serial.println("connected");
             // Once connected, publish an announcement...
             if(!mqtt_client.publish("deliverator/lights/color","OFF")) {
-               Serial.println("Failed to publish");
+                Serial.println("Failed to publish");
             }
             // ... and resubscribe
             if(!mqtt_client.subscribe("deliverator/lights/color")) {
