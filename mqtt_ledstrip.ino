@@ -7,7 +7,7 @@
 #include "FastLED.h"
 #include "config.h"
 
-#define DATA_PIN 50 // signal for LED strip
+#define DATA_PIN 6 // signal for LED strip
 #define CLOCK_PIN 52
 #define NUM_LEDS 74 // total number of LEDs for all strips
 
@@ -78,7 +78,7 @@ void setup() {
     Serial.println("Starting up MQTT LED Controller");
     delay(10);
     // initialize fastled and test all lights
-    FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
+    FastLED.addLeds<WS2812, DATA_PIN>(leds, NUM_LEDS);
     for (int i=0; i<NUM_LEDS; i++) {
         leds[i] = CRGB::Black; // go black first
     }
@@ -99,28 +99,16 @@ void setup() {
     // initialize lights;
     // this really needs to read from a config file
 
-    lights[0] = Light("case", &leds[0], 4);
-    lights[1] = Light("rear-lower", &leds[4], 1);
-    lights[2] = Light("drawer-1", &leds[5], 1);
-    lights[3] = Light("drawer-2", &leds[6], 1);
-    lights[4] = Light("drawer-3", &leds[7], 1);
-    lights[5] = Light("drawer-4", &leds[8], 1);
-    lights[6] = Light("roof-passenger", &leds[9], 17);
-    lights[7] = Light("shelf", &leds[26], 4);
-    lights[8] = Light("roof-driver", &leds[30], 16);
-    lights[9] = Light("rear-upper", &leds[46], 3);
-
-    /* for testing */
-    /*lights[0] = Light("case", &leds[0], 2);
-    lights[1] = Light("rear-lower", &leds[1], 1);
-    lights[2] = Light("drawer-1", &leds[2], 1);
-    lights[3] = Light("drawer-2", &leds[3], 1);
-    lights[4] = Light("drawer-3", &leds[4], 1);
-    lights[5] = Light("drawer-4", &leds[5], 1);
-    lights[6] = Light("roof-passenger", &leds[0], 5);
-    lights[7] = Light("shelf", &leds[5], 5);
-    lights[8] = Light("roof-driver", &leds[3], 5);
-    lights[9] = Light("rear-upper", &leds[7], 3);*/
+    lights[0] = Light("right_cube", &leds[0], 1);
+    lights[1] = Light("left_cube", &leds[1], 1);
+    lights[2] = Light("lower_pegboard", &leds[2], 8);
+    lights[3] = Light("lower_pegboard_2", &leds[10], 8);
+    lights[4] = Light("upper_pegboard", &leds[18], 17);
+    lights[5] = Light("monitor", &leds[35], 4);
+    lights[6] = Light("acc_2", &leds[39], 1);
+    lights[7] = Light("acc_3", &leds[40], 1);
+    lights[8] = Light("acc_4", &leds[41], 1);
+    lights[9] = Light("acc_5", &leds[42], 1);
 
     // turn the lights on one at a time
     for (int i=0; i<NUM_LIGHTS; i++) {
@@ -167,7 +155,6 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     Serial.print("] ");
     payload[length] = '\0';
     char* tmp = strtok(topic,"/");
-    tmp = strtok(NULL,"/");
     char* name = strtok(NULL,"/");
     char* prop = strtok(NULL,"/");
     Serial.println(name);
@@ -205,10 +192,15 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
                 Serial.println(val);
                 lights[i].set_saturation(val);
             }
+            if (strcmp(prop, "Program") == 0) {
+                int val = atoi((char *)payload);
+                Serial.println(val);
+                lights[i].set_program(val);
+            }
         }
     }
-    if(strcmp(topic,"deliverator/lights/color") == 0) {
-        Serial.println("Message received from deliverator/lights/color");
+    if(strcmp(topic,"/lights/color") == 0) {
+        Serial.println("Message received from /lights/color");
         CRGB payload_color;
         sscanf((char *)payload, "#%2x%2x%2x", &payload_color.r, &payload_color.g, &payload_color.b);
         Serial.println("Changing light[1]");
@@ -224,12 +216,12 @@ void reconnect() {
         if (mqtt_client.connect("arduinoClient",mqtt_username,mqtt_key)) {
             Serial.println("connected");
             // Once connected, publish an announcement...
-            if(!mqtt_client.publish("deliverator/lights/color","OFF")) {
+            if(!mqtt_client.publish("/lights/color","OFF")) {
                 Serial.println("Failed to publish");
             }
             // ... and resubscribe
-            if(!mqtt_client.subscribe("deliverator/lights/color")) {
-                Serial.println("Subscribe to deliverator/lights/color failed.");
+            if(!mqtt_client.subscribe("/lights/color")) {
+                Serial.println("Subscribe to /lights/color failed.");
             }
             char *name;
             for(int i=0; i<NUM_LIGHTS; i++) {
@@ -269,7 +261,7 @@ Light::Light(String name, CRGB* leds, int num_leds) {
 
 void Light::subscribe(String prop) {
     char tmp[128];
-    sprintf(tmp, "deliverator/lights/%s/%s", _name.c_str(), prop.c_str());
+    sprintf(tmp, "/lights/%s/%s", _name.c_str(), prop.c_str());
     String feed = tmp;
     if(!mqtt_client.subscribe(feed.c_str())) {
         Serial.print("Failed to subscribe to feed: ");
@@ -288,6 +280,7 @@ void Light::initialize() {
         subscribe("Hue");
         subscribe("Saturation");
         subscribe("Brightness");
+        subscribe("Program");
         add_to_homebridge();
     } else {
         Serial.println("Not Connected");
@@ -388,6 +381,23 @@ CRGB Light::get_rgb() {
     return _color;
 }
 
+void Light::set_program(int prog_id) {
+    Serial.print("Setting program to ");
+    switch(prog_id) {
+        case 0:
+            _prog = &Light::_prog_solid;
+            break;
+        case 1:
+            _prog = &Light::_prog_chase;
+            break;
+        case 2:
+            _prog = &Light::_prog_fade;
+            break;
+        default:
+            break;
+    }
+}
+
 const char* Light::get_name() {
     return _name.c_str();
 }
@@ -409,6 +419,7 @@ int Light::_prog_fade() {
 }
 
 int Light::_prog_chase() {
+    Serial.println('running chase');
     _prog_fade();
     _leds[_count%_num_leds] = _color;
     return 0;
