@@ -7,9 +7,10 @@
 #include "FastLED.h"
 #include "config.h"
 
-#define DATA_PIN 6 // signal for LED strip
-#define CLOCK_PIN 52
-#define NUM_LEDS 74 // total number of LEDs for all strips
+#define DATA_PIN 52
+#define CLOCK_PIN 53
+#define NUM_LEDS 74
+#define FASTLED_ALLOW_INTERRUPTS 0
 
 #define NUM_LIGHTS 10
 
@@ -78,49 +79,29 @@ void setup() {
     Serial.println("Starting up MQTT LED Controller");
     delay(10);
     // initialize fastled and test all lights
-    FastLED.addLeds<WS2812, DATA_PIN>(leds, NUM_LEDS);
+    FastLED.addLeds<APA102, DATA_PIN, CLOCK_PIN, BGR, DATA_RATE_MHZ(12)>(leds, NUM_LEDS);
     for (int i=0; i<NUM_LEDS; i++) {
         leds[i] = CRGB::Black; // go black first
     }
     FastLED.show();
-    for (int i=0; i<NUM_LEDS; i++) {
-        leds[i] = CRGB::White; // fill with white 1 by 1
-        FastLED.show();
-        delay(25);
-    }
-    for (int i=0; i<NUM_LEDS; i++) {
-        leds[i] = CRGB::Black; // go black again
-    }
-    FastLED.show();
+
     delay(1000);
     mqtt_client.setServer(mqtt_server, mqtt_port);
     mqtt_client.setCallback(mqtt_callback);
 
     // initialize lights;
-    // this really needs to read from a config file
-
+    // TODO: Make this based off of a config file
     lights[0] = Light("right_cube", &leds[0], 1);
     lights[1] = Light("left_cube", &leds[1], 1);
-    lights[2] = Light("lower_pegboard", &leds[2], 8);
-    lights[3] = Light("lower_pegboard_2", &leds[10], 8);
-    lights[4] = Light("upper_pegboard", &leds[18], 17);
+    lights[2] = Light("workstation", &leds[2], 8);
+    // TODO: map 2 LED gap here
+    lights[3] = Light("bench", &leds[12], 6);
+    lights[4] = Light("uplight", &leds[18], 17);
     lights[5] = Light("monitor", &leds[35], 4);
     lights[6] = Light("acc_2", &leds[39], 1);
     lights[7] = Light("acc_3", &leds[40], 1);
     lights[8] = Light("acc_4", &leds[41], 1);
     lights[9] = Light("acc_5", &leds[42], 1);
-
-    // turn the lights on one at a time
-    for (int i=0; i<NUM_LIGHTS; i++) {
-        lights[i].turn_on();
-        delay(25);
-        lights[i].turn_off();
-        delay(250);
-    }
-
-    for (int i=0; i<NUM_LIGHTS; i++) {
-        lights[i].turn_off();
-    }
 
     Ethernet.begin(mac);
 
@@ -194,17 +175,15 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
             }
             if (strcmp(prop, "Program") == 0) {
                 int val = atoi((char *)payload);
-                Serial.println(val);
                 lights[i].set_program(val);
             }
+            if (strcmp(prop, "Color") == 0) {
+                CRGB payload_color;
+                sscanf((char *)payload, "#%2x%2x%2x", &payload_color.r, &payload_color.g, &payload_color.b);
+                Serial.println(payload_color);
+                lights[i].set_rgb(payload_color);
+            }
         }
-    }
-    if(strcmp(topic,"/lights/color") == 0) {
-        Serial.println("Message received from /lights/color");
-        CRGB payload_color;
-        sscanf((char *)payload, "#%2x%2x%2x", &payload_color.r, &payload_color.g, &payload_color.b);
-        Serial.println("Changing light[1]");
-        lights[1].set_rgb(payload_color);
     }
 }
 
@@ -281,6 +260,7 @@ void Light::initialize() {
         subscribe("Saturation");
         subscribe("Brightness");
         subscribe("Program");
+        subscribe("Color");
         add_to_homebridge();
     } else {
         Serial.println("Not Connected");
