@@ -7,18 +7,16 @@
 #include "FastLED.h"
 #include "config.h"
 
-#define DATA_PIN 52
-#define CLOCK_PIN 53
-#define NUM_LEDS 74
-#define FASTLED_ALLOW_INTERRUPTS 0
+#define DATA_PIN 40
+#define CLOCK_PIN 41
+#define NUM_LEDS 134
 
-#define NUM_LIGHTS 10
+#define NUM_LIGHTS 5
 
 #define halt(s) { Serial.println(F( s )); while(1);  }
 
 const char *wifi_ssid = WIFI_SSID;
 const char *wifi_pass = WIFI_PASS;
-
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length);
 void reconnect();
@@ -55,6 +53,7 @@ class Light {
         int _prog_solid();
         int _prog_chase();
         int _prog_fade();
+        int _prog_warm();
         int (Light::*_prog)();
         void add_to_homebridge();
         void subscribe(String);
@@ -71,6 +70,8 @@ const char* mqtt_key = MQTT_PASS;
 CRGB leds[NUM_LEDS];
 Light lights[NUM_LIGHTS];
 
+int speed = 500;
+
 EthernetClient eth_client;
 PubSubClient mqtt_client(eth_client);
 
@@ -79,43 +80,48 @@ void setup() {
     Serial.println("Starting up MQTT LED Controller");
     delay(10);
     // initialize fastled and test all lights
-    FastLED.addLeds<APA102, DATA_PIN, CLOCK_PIN, BGR, DATA_RATE_MHZ(12)>(leds, NUM_LEDS);
+
+    FastLED.addLeds<APA102, DATA_PIN, CLOCK_PIN, BGR, DATA_RATE_MHZ(24)>(leds, NUM_LEDS);
+    for (int i=0; i<NUM_LEDS; i++) {
+        leds[i] = CRGB::White; // blink white
+    }
+    FastLED.show();
+    delay(10);
     for (int i=0; i<NUM_LEDS; i++) {
         leds[i] = CRGB::Black; // go black first
     }
     FastLED.show();
-
-    delay(1000);
+    // for (int i=0; i<NUM_LEDS; i++) {
+    //     leds[i] = CRGB::Blue; 
+    //     FastLED.show();
+    //     delay(10);
+    // }
     mqtt_client.setServer(mqtt_server, mqtt_port);
     mqtt_client.setCallback(mqtt_callback);
 
     // initialize lights;
     // TODO: Make this based off of a config file
-    lights[0] = Light("right_cube", &leds[0], 1);
-    lights[1] = Light("left_cube", &leds[1], 1);
-    lights[2] = Light("workstation", &leds[2], 8);
-    // TODO: map 2 LED gap here
-    lights[3] = Light("bench", &leds[12], 6);
-    lights[4] = Light("uplight", &leds[18], 17);
-    lights[5] = Light("monitor", &leds[35], 4);
-    lights[6] = Light("acc_2", &leds[39], 1);
-    lights[7] = Light("acc_3", &leds[40], 1);
-    lights[8] = Light("acc_4", &leds[41], 1);
-    lights[9] = Light("acc_5", &leds[42], 1);
-
+    //lights[0] = Light("right_cube", &leds[0], 10);
+    lights[0] = Light("downlight", &leds[0], 57);
+    lights[1] = Light("uplight", &leds[57], 57);
+    lights[2] = Light("workstation", &leds[10], 20);
+    lights[3] = Light("bench", &leds[40], 17);
     Ethernet.begin(mac);
-
     Serial.println(F("Connecting..."));
     if(!Ethernet.begin(mac)) {
         Serial.println(F("Ethernet configuration failed."));
         for(;;);
     }
+    for (int i=0; i<NUM_LEDS; i++) {
+        leds[i] = CRGB::Black; 
+        FastLED.show();
+        delay(10);
+    }
     Serial.println(F("Ethernet configured via DHCP"));
     Serial.print("IP address: ");
     Serial.println(Ethernet.localIP());
     Serial.println();
-
-    delay(1500);
+    delay(150);
 }
 
 
@@ -128,60 +134,59 @@ void loop() {
     for(int i=0; i<NUM_LIGHTS; i++) {
         lights[i].update();
     }
+    delay(1000/speed);
 }
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length) {
-    Serial.print("Message arrived [");
-    Serial.print(topic);
-    Serial.print("] ");
     payload[length] = '\0';
     char* tmp = strtok(topic,"/");
     char* name = strtok(NULL,"/");
     char* prop = strtok(NULL,"/");
-    Serial.println(name);
-    Serial.println(prop);
-    Serial.println((char *)payload);
-    for (int i=0; i<NUM_LIGHTS; i++) {
-        if (strcmp(name, lights[i].get_name()) == 0) {
-            if (strcmp(prop, "On") == 0) {
-                if(strcmp((char *)payload, "true") == 0) {
-                    Serial.println("Turning On");
-                    lights[i].turn_on();
-                } else {
-                    Serial.println("Turning Off");
-                    lights[i].turn_off();
+    if (strcmp(tmp, "speed") == 0) {
+        speed = atoi((char *)payload);
+    } else if (strcmp(tmp, "lights") == 0) {
+        for (int i=0; i<NUM_LIGHTS; i++) {
+            if (strcmp(name, lights[i].get_name()) == 0) {
+                if (strcmp(prop, "On") == 0) {
+                    if(strcmp((char *)payload, "true") == 0) {
+                        Serial.println("Turning On");
+                        lights[i].turn_on();
+                    } else {
+                        Serial.println("Turning Off");
+                        lights[i].turn_off();
+                    }
                 }
-            }
-            if (strcmp(prop, "Hue") == 0) {
-                int val = atoi((char *)payload);
-                val = val * 255 / 360;
-                Serial.print("Setting hue to ");
-                Serial.println(val);
-                lights[i].set_hue(val);
-            }
-            if (strcmp(prop, "Brightness") == 0) {
-                int val = atoi((char *)payload);
-                val = val * 255 / 100;
-                Serial.print("Setting brightness to ");
-                Serial.println(val);
-                lights[i].set_brightness(val);
-            }
-            if (strcmp(prop, "Saturation") == 0) {
-                int val = atoi((char *)payload);
-                val = val * 255 / 100;
-                Serial.print("Setting saturation to ");
-                Serial.println(val);
-                lights[i].set_saturation(val);
-            }
-            if (strcmp(prop, "Program") == 0) {
-                int val = atoi((char *)payload);
-                lights[i].set_program(val);
-            }
-            if (strcmp(prop, "Color") == 0) {
-                CRGB payload_color;
-                sscanf((char *)payload, "#%2x%2x%2x", &payload_color.r, &payload_color.g, &payload_color.b);
-                Serial.println(payload_color);
-                lights[i].set_rgb(payload_color);
+                if (strcmp(prop, "Hue") == 0) {
+                    int val = atoi((char *)payload);
+                    val = val * 255 / 360;
+                    Serial.print("Setting hue to ");
+                    Serial.println(val);
+                    lights[i].set_hue(val);
+                }
+                if (strcmp(prop, "Brightness") == 0) {
+                    int val = atoi((char *)payload);
+                    val = val * 255 / 100;
+                    Serial.print("Setting brightness to ");
+                    Serial.println(val);
+                    lights[i].set_brightness(val);
+                }
+                if (strcmp(prop, "Saturation") == 0) {
+                    int val = atoi((char *)payload);
+                    val = val * 255 / 100;
+                    Serial.print("Setting saturation to ");
+                    Serial.println(val);
+                    lights[i].set_saturation(val);
+                }
+                if (strcmp(prop, "Program") == 0) {
+                    int val = atoi((char *)payload);
+                    lights[i].set_program(val);
+                }
+                if (strcmp(prop, "Color") == 0) {
+                    CRGB payload_color;
+                    sscanf((char *)payload, "#%2x%2x%2x", &payload_color.r, &payload_color.g, &payload_color.b);
+                    Serial.println(payload_color);
+                    lights[i].set_rgb(payload_color);
+                }
             }
         }
     }
@@ -201,6 +206,9 @@ void reconnect() {
             // ... and resubscribe
             if(!mqtt_client.subscribe("/lights/color")) {
                 Serial.println("Subscribe to /lights/color failed.");
+            }
+            if(!mqtt_client.subscribe("/speed")) {
+                Serial.println("Subcribe to /speed failed.");
             }
             char *name;
             for(int i=0; i<NUM_LIGHTS; i++) {
@@ -246,7 +254,7 @@ void Light::subscribe(String prop) {
         Serial.print("Failed to subscribe to feed: ");
         Serial.println(feed);
     } else {
-        Serial. print("Subscribed to feed: ");
+        Serial.print("Subscribed to feed: ");
         Serial.println(feed);
     }
 }
@@ -286,9 +294,11 @@ void Light::add_to_homebridge() {
 }
 
 void Light::update() {
-    (this->*_prog)();
-    FastLED.show();
-    _count++;
+    if (_onoff == 1) {
+        (this->*_prog)();
+        FastLED.show();
+        _count++;
+    }
 }
 
 void Light::turn_on() {
@@ -301,9 +311,13 @@ void Light::turn_on() {
 
 void Light::turn_off() {
     if(_onoff) {
+        
         _color = CRGB::Black;
         _onoff = 0;
-        update();
+        for (int i=0; i<_num_leds;i++) {
+            _leds[i] = CRGB::Black;
+        }
+        FastLED.show();
     }
 }
 
@@ -373,6 +387,9 @@ void Light::set_program(int prog_id) {
         case 2:
             _prog = &Light::_prog_fade;
             break;
+        case 3:
+            _prog = &Light::_prog_warm;
+            break;
         default:
             break;
     }
@@ -399,8 +416,18 @@ int Light::_prog_fade() {
 }
 
 int Light::_prog_chase() {
-    Serial.println('running chase');
     _prog_fade();
-    _leds[_count%_num_leds] = _color;
+    leds[_count%_num_leds] = _color;
+    return 0;
+}
+
+int Light::_prog_warm() {
+    _prog_fade();
+     if (_count%10 == 0) {
+        CRGB wc = _color;
+        wc/=10;
+        _leds[random(_num_leds)] += wc;
+    }
+    
     return 0;
 }
