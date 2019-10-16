@@ -54,6 +54,7 @@ class Light {
         int _prog_chase();
         int _prog_fade();
         int _prog_warm();
+        int _prog_lfo();
         int (Light::*_prog)();
         void add_to_homebridge();
         void subscribe(String);
@@ -390,6 +391,8 @@ void Light::set_program(int prog_id) {
         case 3:
             _prog = &Light::_prog_warm;
             break;
+        case 4:
+            _prog = &Light::_prog_lfo;
         default:
             break;
     }
@@ -423,11 +426,19 @@ int Light::_prog_chase() {
 
 int Light::_prog_warm() {
     _prog_fade();
-     if (_count%10 == 0) {
+    if (_count%25 == 0) {
         CRGB wc = _color;
-        wc/=10;
+        wc/=3;
         _leds[random(_num_leds)] += wc;
     }
     
     return 0;
+}
+
+int Light::_prog_lfo() {
+    int wc = _color;
+    wc%=(int)round(sin(_count*3.14/180)*255);
+    for(int i=0; i<_num_leds; i++) {
+        _leds[i] = wc;
+    }
 }
