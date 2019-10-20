@@ -4,8 +4,10 @@
 #include <Dns.h>
 #include <Dhcp.h>
 #include <PubSubClient.h>
-#include "FastLED.h"
+#include <FastLED.h>
 #include "config.h"
+#include <ArduinoJson.h>
+
 
 #define DATA_PIN 40
 #define CLOCK_PIN 41
@@ -56,8 +58,8 @@ class Light {
         int _prog_warm();
         int _prog_lfo();
         int (Light::*_prog)();
-        void add_to_homebridge();
-        void subscribe(String);
+        // void add_to_homebridge();
+        void subscribe();
 };
 
 // Ethernet Vars
@@ -139,17 +141,19 @@ void loop() {
 }
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length) {
+    DynamicJsonDocument doc(1024);
+    deserializeJson(doc, (char *)payload);
     payload[length] = '\0';
     char* tmp = strtok(topic,"/");
     char* name = strtok(NULL,"/");
-    char* prop = strtok(NULL,"/");
     if (strcmp(tmp, "speed") == 0) {
         speed = atoi((char *)payload);
     } else if (strcmp(tmp, "lights") == 0) {
         for (int i=0; i<NUM_LIGHTS; i++) {
             if (strcmp(name, lights[i].get_name()) == 0) {
-                if (strcmp(prop, "on") == 0) {
-                    if(strcmp((char *)payload, "true") == 0) {
+                if (doc.containsKey("On")) {
+                    bool OnOff = doc["On"];
+                    if(OnOff) {
                         Serial.println("Turning On");
                         lights[i].turn_on();
                     } else {
@@ -157,36 +161,30 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
                         lights[i].turn_off();
                     }
                 }
-                if (strcmp(prop, "hue") == 0) {
-                    int val = atoi((char *)payload);
-                    val = val * 255 / 360;
+                if (doc.containsKey("Hue")) {
+                    int val = doc["Hue"];
+                    int hue = val * 255 / 360;
                     Serial.print("Setting hue to ");
-                    Serial.println(val);
-                    lights[i].set_hue(val);
+                    Serial.println(hue);
+                    lights[i].set_hue(hue);
                 }
-                if (strcmp(prop, "brightness") == 0) {
-                    int val = atoi((char *)payload);
-                    val = val * 255 / 100;
+                if (doc.containsKey("Brightness")) {
+                    int val = doc["Brightness"];
+                    int bright = val * 255 / 100;
                     Serial.print("Setting brightness to ");
-                    Serial.println(val);
-                    lights[i].set_brightness(val);
+                    Serial.println(bright);
+                    lights[i].set_brightness(bright);
                 }
-                if (strcmp(prop, "saturation") == 0) {
-                    int val = atoi((char *)payload);
-                    val = val * 255 / 100;
+                if (doc.containsKey("Saturation")) {
+                    int val = doc["Saturation"];
+                    int sat = val * 255 / 100;
                     Serial.print("Setting saturation to ");
-                    Serial.println(val);
-                    lights[i].set_saturation(val);
+                    Serial.println(sat);
+                    lights[i].set_saturation(sat);
                 }
-                if (strcmp(prop, "program") == 0) {
-                    int val = atoi((char *)payload);
+                if (doc.containsKey("Program")) {
+                    int val = doc["Program"];
                     lights[i].set_program(val);
-                }
-                if (strcmp(prop, "color") == 0) {
-                    CRGB payload_color;
-                    sscanf((char *)payload, "#%2x%2x%2x", &payload_color.r, &payload_color.g, &payload_color.b);
-                    Serial.println(payload_color);
-                    lights[i].set_rgb(payload_color);
                 }
             }
         }
@@ -200,17 +198,6 @@ void reconnect() {
         // Attempt to connect
         if (mqtt_client.connect("arduinoClient",mqtt_username,mqtt_key)) {
             Serial.println("connected");
-            // Once connected, publish an announcement...
-            if(!mqtt_client.publish("/lights/color","OFF")) {
-                Serial.println("Failed to publish");
-            }
-            // ... and resubscribe
-            if(!mqtt_client.subscribe("/lights/color")) {
-                Serial.println("Subscribe to /lights/color failed.");
-            }
-            if(!mqtt_client.subscribe("/speed")) {
-                Serial.println("Subcribe to /speed failed.");
-            }
             char *name;
             for(int i=0; i<NUM_LIGHTS; i++) {
                 lights[i].initialize();
@@ -247,9 +234,9 @@ Light::Light(String name, CRGB* leds, int num_leds) {
     _count = 0;
 }
 
-void Light::subscribe(String prop) {
+void Light::subscribe() {
     char tmp[128];
-    sprintf(tmp, "/lights/%s/%s", _name.c_str(), prop.c_str());
+    sprintf(tmp, "/lights/%s", _name.c_str());
     String feed = tmp;
     if(!mqtt_client.subscribe(feed.c_str())) {
         Serial.print("Failed to subscribe to feed: ");
@@ -264,35 +251,30 @@ void Light::initialize() {
     if (mqtt_client.connected()) {
         Serial.print("Subscribing to feeds for light:");
         Serial.println(_name);
-        subscribe("on");
-        subscribe("hue");
-        subscribe("saturation");
-        subscribe("brightness");
-        subscribe("program");
-        subscribe("color");
-        add_to_homebridge();
+        subscribe();
+        // add_to_homebridge();
     } else {
         Serial.println("Not Connected");
     }
 }
 
-void Light::add_to_homebridge() {
-    Serial.print("Adding light to homebridge ");
-    Serial.println(_name);
-    char payload[128];
-    sprintf(payload, "{ \"name\": \"%s\", \"Service\": \"Lightbulb\", \"Hue\": \"0\", \"Saturation\": \"100\", \"Brightness\": \"50\" }", _name.c_str());
-    byte length = (byte)strlen(payload);
-    if(!mqtt_client.publish("homebridge/to/add", payload, length)) {
-        Serial.println("Failed");
-    } else {
-        Serial.println("Light added!");
-    }
-    sprintf(payload, "{\"name\": \"%s\", \"reachable\": true}", _name.c_str());
-    length = (byte)strlen(payload);
-    if(!mqtt_client.publish("homebridge/to/set/reachability", payload, length)) {
-        Serial.println("Reachability restored");
-    }
-}
+// void Light::add_to_homebridge() {
+//     Serial.print("Adding light to homebridge ");
+//     Serial.println(_name);
+//     char payload[128];
+//     sprintf(payload, "{ \"name\": \"%s\", \"Service\": \"Lightbulb\", \"Hue\": \"0\", \"Saturation\": \"100\", \"Brightness\": \"50\" }", _name.c_str());
+//     byte length = (byte)strlen(payload);
+//     if(!mqtt_client.publish("homebridge/to/add", payload, length)) {
+//         Serial.println("Failed");
+//     } else {
+//         Serial.println("Light added!");
+//     }
+//     sprintf(payload, "{\"name\": \"%s\", \"reachable\": true}", _name.c_str());
+//     length = (byte)strlen(payload);
+//     if(!mqtt_client.publish("homebridge/to/set/reachability", payload, length)) {
+//         Serial.println("Reachability restored");
+//     }
+// }
 
 void Light::update() {
     if (_onoff == 1) {
