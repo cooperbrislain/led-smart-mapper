@@ -152,7 +152,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
         for (int i=0; i<NUM_LIGHTS; i++) {
             if (strcmp(name, lights[i].get_name()) == 0) {
                 if (doc.containsKey("On")) {
-                    bool OnOff = doc["On"];
+                    bool OnOff = doc["On"].as<bool>();
                     if(OnOff) {
                         Serial.println("Turning On");
                         lights[i].turn_on();
@@ -162,22 +162,22 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
                     }
                 }
                 if (doc.containsKey("Hue")) {
-                    int val = doc["Hue"];
-                    int hue = val * 255 / 360;
+                    int val = doc["Hue"].as<int>();
+                    int hue = val * 17/24; // 255/360
                     Serial.print("Setting hue to ");
                     Serial.println(hue);
                     lights[i].set_hue(hue);
                 }
                 if (doc.containsKey("Brightness")) {
-                    int val = doc["Brightness"];
-                    int bright = val * 255 / 100;
+                    int val = doc["Brightness"].as<int>();
+                    int bright = val * 51/20; // 255/100
                     Serial.print("Setting brightness to ");
                     Serial.println(bright);
                     lights[i].set_brightness(bright);
                 }
                 if (doc.containsKey("Saturation")) {
-                    int val = doc["Saturation"];
-                    int sat = val * 255 / 100;
+                    int val = doc["Saturation"].as<int>();
+                    int sat = val * 51/20; // 255/100
                     Serial.print("Setting saturation to ");
                     Serial.println(sat);
                     lights[i].set_saturation(sat);
