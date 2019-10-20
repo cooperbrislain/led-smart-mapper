@@ -49,7 +49,7 @@ class Light {
         int _last_brightness;
         bool _onoff;
         String _name;
-        int _count;
+        unsigned int _count;
         int _prog_solid();
         int _prog_chase();
         int _prog_fade();
@@ -148,7 +148,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     } else if (strcmp(tmp, "lights") == 0) {
         for (int i=0; i<NUM_LIGHTS; i++) {
             if (strcmp(name, lights[i].get_name()) == 0) {
-                if (strcmp(prop, "On") == 0) {
+                if (strcmp(prop, "on") == 0) {
                     if(strcmp((char *)payload, "true") == 0) {
                         Serial.println("Turning On");
                         lights[i].turn_on();
@@ -157,32 +157,32 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
                         lights[i].turn_off();
                     }
                 }
-                if (strcmp(prop, "Hue") == 0) {
+                if (strcmp(prop, "hue") == 0) {
                     int val = atoi((char *)payload);
                     val = val * 255 / 360;
                     Serial.print("Setting hue to ");
                     Serial.println(val);
                     lights[i].set_hue(val);
                 }
-                if (strcmp(prop, "Brightness") == 0) {
+                if (strcmp(prop, "brightness") == 0) {
                     int val = atoi((char *)payload);
                     val = val * 255 / 100;
                     Serial.print("Setting brightness to ");
                     Serial.println(val);
                     lights[i].set_brightness(val);
                 }
-                if (strcmp(prop, "Saturation") == 0) {
+                if (strcmp(prop, "saturation") == 0) {
                     int val = atoi((char *)payload);
                     val = val * 255 / 100;
                     Serial.print("Setting saturation to ");
                     Serial.println(val);
                     lights[i].set_saturation(val);
                 }
-                if (strcmp(prop, "Program") == 0) {
+                if (strcmp(prop, "program") == 0) {
                     int val = atoi((char *)payload);
                     lights[i].set_program(val);
                 }
-                if (strcmp(prop, "Color") == 0) {
+                if (strcmp(prop, "color") == 0) {
                     CRGB payload_color;
                     sscanf((char *)payload, "#%2x%2x%2x", &payload_color.r, &payload_color.g, &payload_color.b);
                     Serial.println(payload_color);
@@ -264,12 +264,12 @@ void Light::initialize() {
     if (mqtt_client.connected()) {
         Serial.print("Subscribing to feeds for light:");
         Serial.println(_name);
-        subscribe("On");
-        subscribe("Hue");
-        subscribe("Saturation");
-        subscribe("Brightness");
-        subscribe("Program");
-        subscribe("Color");
+        subscribe("on");
+        subscribe("hue");
+        subscribe("saturation");
+        subscribe("brightness");
+        subscribe("program");
+        subscribe("color");
         add_to_homebridge();
     } else {
         Serial.println("Not Connected");
@@ -299,6 +299,7 @@ void Light::update() {
         (this->*_prog)();
         FastLED.show();
         _count++;
+        
     }
 }
 
@@ -437,7 +438,7 @@ int Light::_prog_warm() {
 
 int Light::_prog_lfo() {
     int wc = _color;
-    wc%=(int)round(sin(_count*3.14/180)*255);
+    wc%=(int)round((sin(_count*3.14/180)+0.5)*255);
     for(int i=0; i<_num_leds; i++) {
         _leds[i] = wc;
     }
