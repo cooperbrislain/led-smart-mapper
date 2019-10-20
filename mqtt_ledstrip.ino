@@ -57,6 +57,8 @@ class Light {
         int _prog_fade();
         int _prog_warm();
         int _prog_lfo();
+        int _prog_fade_out();
+        int _prog_fade_in();
         int (Light::*_prog)();
         // void add_to_homebridge();
         void subscribe();
@@ -126,7 +128,6 @@ void setup() {
     Serial.println();
     delay(150);
 }
-
 
 void loop() {
     if (!mqtt_client.connected()) {
@@ -212,10 +213,33 @@ void reconnect() {
     }
 }
 
+CRGB fadeTowardColor(CRGB cur, CRGB target, uint8_t amount) {
+    CRGB newc;
+    newc.red =  nblendU8TowardU8( cur.red,   target.red,   amount);
+    newc.green = nblendU8TowardU8( cur.green, target.green, amount);
+    newc.blue = nblendU8TowardU8( cur.blue,  target.blue,  amount);
+    return newc;
+}
+
+uint8_t nblendU8TowardU8( uint8_t cur, const uint8_t target, uint8_t amount) {
+    uint8_t newc;
+    if( cur == target) return newc = cur;
+    if( cur < target ) {
+        uint8_t delta = target - cur;
+        delta = scale8_video( delta, amount);
+        newc = cur + delta;
+    } else {
+        uint8_t delta = cur - target;
+        delta = scale8_video( delta, amount);
+        newc = cur - delta;
+    }
+    return newc;
+}
+
 // Light member functions
 
 Light::Light() {
-    _color = CRGB::Black;
+    _color = CRGB::White;
     _onoff = 0;
     _num_leds = 0;
     _leds = 0;
@@ -225,7 +249,7 @@ Light::Light() {
 }
 
 Light::Light(String name, CRGB* leds, int num_leds) {
-    _color = CRGB::Black;
+    _color = CRGB::White;
     _onoff = 0;
     _num_leds = num_leds;
     _leds = leds;
@@ -287,7 +311,7 @@ void Light::update() {
 
 void Light::turn_on() {
     if(!_onoff) {
-        _color = CRGB::White;
+        _prog = &Light::_prog_fade_in;
         _onoff = 1;
         update();
     }
@@ -295,13 +319,8 @@ void Light::turn_on() {
 
 void Light::turn_off() {
     if(_onoff) {
-        
-        _color = CRGB::Black;
-        _onoff = 0;
-        for (int i=0; i<_num_leds;i++) {
-            _leds[i] = CRGB::Black;
-        }
-        FastLED.show();
+         _prog = &Light::_prog_fade_out;
+         update();
     }
 }
 
@@ -346,8 +365,8 @@ void Light::set_hsv(int hue, int sat, int val) {
     update();
 }
 
-void Light::set_hsv(CHSV input_color) {
-    _color = input_color;
+void Light::set_hsv(CHSV color) {
+    _color = color;
     update();
 }
 
@@ -398,6 +417,26 @@ int Light::_prog_fade() {
     for(int i=0; i<_num_leds; i++) {
         _leds[i].fadeToBlackBy(20);
     }
+    return 0;
+}
+
+int Light::_prog_fade_in() {
+    bool still_fading = false;
+    for(int i=0; i<_num_leds; i++) {
+        _leds[i] = fadeTowardColor(_leds[i], _color, 5);
+        if (_leds[i] != _color) still_fading = true;
+    }
+    if (!still_fading) _prog = &Light::_prog_solid;
+    return 0;
+}
+
+int Light::_prog_fade_out() {
+    bool still_fading = false;
+    for(int i=0; i<_num_leds; i++) {
+        _leds[i].fadeToBlackBy(15);
+        if (_leds[i]) still_fading = true;
+    }
+    if (!still_fading) _onoff = false;
     return 0;
 }
 
