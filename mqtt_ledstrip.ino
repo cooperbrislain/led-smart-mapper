@@ -57,8 +57,9 @@ class Light {
         int _prog_fade();
         int _prog_warm();
         int _prog_lfo();
-        int _prog_fade_out();
-        int _prog_fade_in();
+        int _prog_fadeout();
+        int _prog_fadein();
+        int _prog_longfade();
         int (Light::*_prog)();
         // void add_to_homebridge();
         void subscribe();
@@ -310,16 +311,14 @@ void Light::update() {
 }
 
 void Light::turn_on() {
-    if(!_onoff) {
-        _prog = &Light::_prog_fade_in;
-        _onoff = 1;
-        update();
-    }
+    _prog = &Light::_prog_fadein;
+    _onoff = 1;
+    update();
 }
 
 void Light::turn_off() {
     if(_onoff) {
-         _prog = &Light::_prog_fade_out;
+         _prog = &Light::_prog_fadeout;
          update();
     }
 }
@@ -420,20 +419,20 @@ int Light::_prog_fade() {
     return 0;
 }
 
-int Light::_prog_fade_in() {
+int Light::_prog_fadein() {
     bool still_fading = false;
     for(int i=0; i<_num_leds; i++) {
-        _leds[i] = fadeTowardColor(_leds[i], _color, 5);
+        _leds[i] = fadeTowardColor(_leds[i], _color, 1);
         if (_leds[i] != _color) still_fading = true;
     }
     if (!still_fading) _prog = &Light::_prog_solid;
     return 0;
 }
 
-int Light::_prog_fade_out() {
+int Light::_prog_fadeout() {
     bool still_fading = false;
     for(int i=0; i<_num_leds; i++) {
-        _leds[i].fadeToBlackBy(15);
+        _leds[i].fadeToBlackBy(1);
         if (_leds[i]) still_fading = true;
     }
     if (!still_fading) _onoff = false;
@@ -463,4 +462,16 @@ int Light::_prog_lfo() {
     for(int i=0; i<_num_leds; i++) {
         _leds[i] = wc;
     }
+}
+
+int Light::_prog_longfade() {
+    bool still_fading = false;
+    if(_count%10 == 0) {
+        for(int i=0; i<_num_leds; i++) {
+            _leds[i].fadeToBlackBy(1);
+            if (_leds[i]) still_fading = true;
+        }
+        if (!still_fading) _onoff = false;
+    }
+    return 0;
 }
