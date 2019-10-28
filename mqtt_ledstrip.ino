@@ -395,6 +395,7 @@ void Light::set_program(int prog_id) {
             break;
         case 3:
             _prog = &Light::_prog_warm;
+            _params[0] = 50;
             break;
         case 4:
             _prog = &Light::_prog_lfo;
@@ -450,9 +451,9 @@ int Light::_prog_chase(int x) {
 }
 
 int Light::_prog_warm(int x) {
-    _prog_fade(3);
+    _prog_fade(1);
     
-    if (_count%40 == 0) {
+    if (_count%25 == 0) {
         _index = random(_num_leds);
         CHSV wc = rgb2hsv_approximate(_color);
         wc.h += random(20)-10;
