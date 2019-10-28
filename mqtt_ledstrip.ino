@@ -45,6 +45,7 @@ class Light {
         void update();
 
     private:
+        int* _params [3];
         CRGB* _leds;
         CRGB _color;
         int _num_leds;
@@ -52,15 +53,16 @@ class Light {
         bool _onoff;
         String _name;
         unsigned int _count;
-        int _prog_solid();
-        int _prog_chase();
-        int _prog_fade();
-        int _prog_warm();
-        int _prog_lfo();
-        int _prog_fadeout();
-        int _prog_fadein();
-        int _prog_longfade();
-        int (Light::*_prog)();
+        unsigned int _index;
+        int _prog_solid(int x);
+        int _prog_chase(int x);
+        int _prog_fade(int x);
+        int _prog_warm(int x);
+        int _prog_lfo(int x);
+        int _prog_fadeout(int x);
+        int _prog_fadein(int x);
+        int _prog_longfade(int x);
+        int (Light::*_prog)(int x);
         // void add_to_homebridge();
         void subscribe();
 };
@@ -108,10 +110,11 @@ void setup() {
     // initialize lights;
     // TODO: Make this based off of a config file
     //lights[0] = Light("right_cube", &leds[0], 10);
-    lights[0] = Light("downlight", &leds[0], 57);
-    lights[1] = Light("uplight", &leds[57], 57);
-    lights[2] = Light("workstation", &leds[10], 20);
-    lights[3] = Light("bench", &leds[40], 17);
+    lights[0] = Light("downlight", &leds[10],57);
+    lights[1] = Light("uplight", &leds[67], 57);
+    lights[2] = Light("workstation", &leds[20], 20);
+    lights[3] = Light("bench", &leds[50], 17);
+    lights[4] = Light("rightcube", &leds[0], 10);
     Ethernet.begin(mac);
     Serial.println(F("Connecting..."));
     if(!Ethernet.begin(mac)) {
@@ -214,24 +217,24 @@ void reconnect() {
     }
 }
 
-CRGB fadeTowardColor(CRGB cur, CRGB target, uint8_t amount) {
+CRGB fadeTowardColor(CRGB cur, CRGB target, uint8_t x) {
     CRGB newc;
-    newc.red =  nblendU8TowardU8( cur.red,   target.red,   amount);
-    newc.green = nblendU8TowardU8( cur.green, target.green, amount);
-    newc.blue = nblendU8TowardU8( cur.blue,  target.blue,  amount);
+    newc.red =  nblendU8TowardU8( cur.red,   target.red,   x);
+    newc.green = nblendU8TowardU8( cur.green, target.green, x);
+    newc.blue = nblendU8TowardU8( cur.blue,  target.blue,  x);
     return newc;
 }
 
-uint8_t nblendU8TowardU8( uint8_t cur, const uint8_t target, uint8_t amount) {
+uint8_t nblendU8TowardU8( uint8_t cur, const uint8_t target, uint8_t x) {
     uint8_t newc;
     if( cur == target) return newc = cur;
     if( cur < target ) {
         uint8_t delta = target - cur;
-        delta = scale8_video( delta, amount);
+        delta = scale8_video( delta, x);
         newc = cur + delta;
     } else {
         uint8_t delta = cur - target;
-        delta = scale8_video( delta, amount);
+        delta = scale8_video( delta, x);
         newc = cur - delta;
     }
     return newc;
@@ -247,6 +250,7 @@ Light::Light() {
     _name = "light";
     _prog = &Light::_prog_solid;
     _count = 0;
+    _params[0] = 50;
 }
 
 Light::Light(String name, CRGB* leds, int num_leds) {
@@ -303,7 +307,7 @@ void Light::initialize() {
 
 void Light::update() {
     if (_onoff == 1) {
-        (this->*_prog)();
+        (this->*_prog)(_params[0]);
         FastLED.show();
         _count++;
         
@@ -405,21 +409,21 @@ const char* Light::get_name() {
 
 // programs
 
-int Light::_prog_solid() {
+int Light::_prog_solid(int x) {
     for (int i=0; i<_num_leds; i++) {
         _leds[i] = _color;
     }
     return 0;
 }
 
-int Light::_prog_fade() {
+int Light::_prog_fade(int x) {
     for(int i=0; i<_num_leds; i++) {
-        _leds[i].fadeToBlackBy(20);
+        _leds[i].fadeToBlackBy(x);
     }
     return 0;
 }
 
-int Light::_prog_fadein() {
+int Light::_prog_fadein(int x) {
     bool still_fading = false;
     for(int i=0; i<_num_leds; i++) {
         _leds[i] = fadeTowardColor(_leds[i], _color, 1);
@@ -429,7 +433,7 @@ int Light::_prog_fadein() {
     return 0;
 }
 
-int Light::_prog_fadeout() {
+int Light::_prog_fadeout(int x) {
     bool still_fading = false;
     for(int i=0; i<_num_leds; i++) {
         _leds[i].fadeToBlackBy(1);
@@ -439,24 +443,27 @@ int Light::_prog_fadeout() {
     return 0;
 }
 
-int Light::_prog_chase() {
-    _prog_fade();
+int Light::_prog_chase(int x) {
+    _prog_fade(6);
     leds[_count%_num_leds] = _color;
     return 0;
 }
 
-int Light::_prog_warm() {
-    _prog_fade();
-    if (_count%25 == 0) {
-        CRGB wc = _color;
-        wc/=3;
-        _leds[random(_num_leds)] += wc;
-    }
+int Light::_prog_warm(int x) {
+    _prog_fade(3);
     
+    if (_count%40 == 0) {
+        _index = random(_num_leds);
+        CHSV wc = rgb2hsv_approximate(_color);
+        wc.h += random(20)-10;
+        wc.v &=x;
+        _color = wc;
+    }
+    _leds[_index] += _color;
     return 0;
 }
 
-int Light::_prog_lfo() {
+int Light::_prog_lfo(int x) {
     int wc = _color;
     wc%=(int)round((sin(_count*3.14/180)+0.5)*255);
     for(int i=0; i<_num_leds; i++) {
@@ -464,7 +471,7 @@ int Light::_prog_lfo() {
     }
 }
 
-int Light::_prog_longfade() {
+int Light::_prog_longfade(int x) {
     bool still_fading = false;
     if(_count%10 == 0) {
         for(int i=0; i<_num_leds; i++) {
