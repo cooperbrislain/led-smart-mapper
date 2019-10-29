@@ -38,7 +38,7 @@ class Light {
         void set_rgb(CRGB);
         void set_hsv(int hue, int sat, int val);
         void set_hsv(CHSV);
-        void set_program(int prog_id);
+        void set_program(char* program);
         CRGB get_rgb();
         CHSV get_hsv();
         void initialize();
@@ -122,19 +122,22 @@ void setup() {
     // initialize lights;
     // TODO: Make this based off of a config file
     //lights[0] = Light("right_cube", &leds[0], 10);
-    lights[0] = Light("downlight", &leds, 10, 57);
-    lights[1] = Light("uplight", &leds, 67, 57);
-    lights[2] = Light("workstation", &leds, 20, 20);
-    lights[3] = Light("bench", &leds, 50, 17);
-    lights[4] = Light("rightcube", &leds, 0, 10);
+    lights[0] = Light("downlight", &leds[0], 10, 57);
+    lights[1] = Light("uplight", &leds[0], 67, 57);
+    lights[2] = Light("workstation", &leds[0], 20, 20);
+    lights[3] = Light("bench", &leds[0], 50, 17);
+    lights[4] = Light("rightcube", &leds[0], 0, 10);
     Ethernet.begin(mac);
     Serial.println(F("Connecting..."));
     if(!Ethernet.begin(mac)) {
         Serial.println(F("Ethernet configuration failed."));
         for(;;);
     }
-    ip = Ethernet.localIP();
-    broadcast = ip;
+    IPAddress localip = Ethernet.localIP();
+    broadcast[0] = ip[0] = localip[0];
+    broadcast[1] = ip[1] = localip[1];
+    broadcast[2] = ip[2] = localip[2];
+    ip[3] = localip[3];
     broadcast[3] = 0xff;
     for (int i=0; i<NUM_LEDS; i++) {
         leds[i] = CRGB::Black; 
@@ -143,11 +146,9 @@ void setup() {
     }
     Serial.println(F("Ethernet configured via DHCP"));
     Serial.print("IP address: ");
-    Serial.println(ip);
-    Serial.print("Broadcast address: ");
-    Serial.println(broadcast);
+    Serial.println(Ethernet.localIP());
     Serial.println("Initializing Artnet");
-    artnet.begin(ip);
+    artnet.begin(mac, ip);
     artnet.setBroadcast(broadcast);
     artnet.setArtDmxCallback(onDmxFrame);
     Serial.println("Artnet Initialized");
@@ -210,7 +211,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
                     lights[i].set_saturation(sat);
                 }
                 if (doc.containsKey("Program")) {
-                    int val = doc["Program"];
+                    char* val = doc["Program"];
                     lights[i].set_program(val);
                 }
             }
@@ -308,7 +309,7 @@ Light::Light(String name, CRGB* leds, int offset, int num_leds) {
     _color = CRGB::White;
     _onoff = 0;
     _num_leds = num_leds;
-    _leds = leds[offset];
+    _leds = &leds[offset];
     _offset = offset;
     _name = name;
     _prog = &Light::_prog_solid;
@@ -433,27 +434,18 @@ CRGB Light::get_rgb() {
     return _color;
 }
 
-void Light::set_program(int prog_id) {
+void Light::set_program(char* program) {
     Serial.print("Setting program to ");
-    switch(prog_id) {
-        case 0:
-            _prog = &Light::_prog_solid;
-            break;
-        case 1:
-            _prog = &Light::_prog_chase;
-            break;
-        case 2:
-            _prog = &Light::_prog_fade;
-            break;
-        case 3:
-            _prog = &Light::_prog_warm;
-            _params[0] = 50;
-            break;
-        case 4:
-            _prog = &Light::_prog_lfo;
-        default:
-            break;
+    Serial.println(program);
+    if (strcmp(program, "solid")==0) _prog = &Light::_prog_solid;
+    if (strcmp(program, "chase")==0) _prog = &Light::_prog_chase;
+    if (strcmp(program, "fade")==0) _prog = &Light::_prog_fade;
+    if (strcmp(program, "warm")==0) {
+        _prog = &Light::_prog_warm;
+        _params[0] = 50;
     }
+    if (strcmp(program, "lfo")==0) _prog = &Light::_prog_lfo;
+    if (strcmp(program, "artnet")==0) _prog = &Light::_prog_artnet;
 }
 
 const char* Light::get_name() {
