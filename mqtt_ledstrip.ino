@@ -7,12 +7,12 @@
 #include <FastLED.h>
 #include "config.h"
 #include <ArduinoJson.h>
-
+#include <Artnet.h>
 
 #define DATA_PIN 40
 #define CLOCK_PIN 41
-#define NUM_LEDS 134
 
+#define NUM_LEDS 134
 #define NUM_LIGHTS 5
 
 #define halt(s) { Serial.println(F( s )); while(1);  }
@@ -25,7 +25,7 @@ void reconnect();
 
 class Light {
     public:
-        Light(String name, CRGB* leds, int num_leds);
+        Light(String name, CRGB* leds, int offset, int num_leds);
         Light();
 
         const char* get_name();
@@ -38,7 +38,7 @@ class Light {
         void set_rgb(CRGB);
         void set_hsv(int hue, int sat, int val);
         void set_hsv(CHSV);
-        void set_program(int prog_id);
+        void set_program(char* program);
         CRGB get_rgb();
         CHSV get_hsv();
         void initialize();
@@ -49,6 +49,7 @@ class Light {
         CRGB* _leds;
         CRGB _color;
         int _num_leds;
+        int _offset;
         int _last_brightness;
         bool _onoff;
         String _name;
@@ -62,6 +63,7 @@ class Light {
         int _prog_fadeout(int x);
         int _prog_fadein(int x);
         int _prog_longfade(int x);
+        int _prog_artnet(int x);
         int (Light::*_prog)(int x);
         // void add_to_homebridge();
         void subscribe();
@@ -69,6 +71,8 @@ class Light {
 
 // Ethernet Vars
 byte mac[] = { 0xDA, 0x3D, 0xB3, 0xF3, 0xF0, 0x3D };
+byte broadcast[] = { 192,168,0,255};
+byte ip[] = { 192,168,0,101 };
 
 const char* mqtt_server = MQTT_HOST;
 const int mqtt_port = 1883;
@@ -77,6 +81,15 @@ const char* mqtt_key = MQTT_PASS;
 
 CRGB leds[NUM_LEDS];
 Light lights[NUM_LIGHTS];
+Artnet artnet;
+CRGB artnet_leds [NUM_LEDS];
+
+const int numberOfChannels = NUM_LEDS * 3;
+const int startUniverse = 0; 
+const int maxUniverses = numberOfChannels / 512 + ((numberOfChannels % 512) ? 1 : 0);
+bool universesReceived[maxUniverses];
+bool sendFrame = 1;
+int previousDataLength = 0;
 
 int speed = 500;
 
@@ -106,21 +119,26 @@ void setup() {
     // }
     mqtt_client.setServer(mqtt_server, mqtt_port);
     mqtt_client.setCallback(mqtt_callback);
-
     // initialize lights;
     // TODO: Make this based off of a config file
     //lights[0] = Light("right_cube", &leds[0], 10);
-    lights[0] = Light("downlight", &leds[10],57);
-    lights[1] = Light("uplight", &leds[67], 57);
-    lights[2] = Light("workstation", &leds[20], 20);
-    lights[3] = Light("bench", &leds[50], 17);
-    lights[4] = Light("rightcube", &leds[0], 10);
+    lights[0] = Light("downlight", &leds[0], 10, 57);
+    lights[1] = Light("uplight", &leds[0], 67, 57);
+    lights[2] = Light("workstation", &leds[0], 20, 20);
+    lights[3] = Light("bench", &leds[0], 50, 17);
+    lights[4] = Light("rightcube", &leds[0], 0, 10);
     Ethernet.begin(mac);
     Serial.println(F("Connecting..."));
     if(!Ethernet.begin(mac)) {
         Serial.println(F("Ethernet configuration failed."));
         for(;;);
     }
+    IPAddress localip = Ethernet.localIP();
+    broadcast[0] = ip[0] = localip[0];
+    broadcast[1] = ip[1] = localip[1];
+    broadcast[2] = ip[2] = localip[2];
+    ip[3] = localip[3];
+    broadcast[3] = 0xff;
     for (int i=0; i<NUM_LEDS; i++) {
         leds[i] = CRGB::Black; 
         FastLED.show();
@@ -129,7 +147,11 @@ void setup() {
     Serial.println(F("Ethernet configured via DHCP"));
     Serial.print("IP address: ");
     Serial.println(Ethernet.localIP());
-    Serial.println();
+    Serial.println("Initializing Artnet");
+    artnet.begin(mac, ip);
+    artnet.setBroadcast(broadcast);
+    artnet.setArtDmxCallback(onDmxFrame);
+    Serial.println("Artnet Initialized");
     delay(150);
 }
 
@@ -139,6 +161,7 @@ void loop() {
         reconnect();
     }
     mqtt_client.loop();
+    artnet.read();
     for(int i=0; i<NUM_LIGHTS; i++) {
         lights[i].update();
     }
@@ -188,7 +211,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
                     lights[i].set_saturation(sat);
                 }
                 if (doc.containsKey("Program")) {
-                    int val = doc["Program"];
+                    char* val = doc["Program"];
                     lights[i].set_program(val);
                 }
             }
@@ -240,6 +263,35 @@ uint8_t nblendU8TowardU8( uint8_t cur, const uint8_t target, uint8_t x) {
     return newc;
 }
 
+// Artnet
+
+void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* data, IPAddress remoteIP) {
+    sendFrame = 1;
+
+    if ((universe - startUniverse) < maxUniverses)
+    universesReceived[universe - startUniverse] = 1;
+
+    for (int i = 0 ; i < maxUniverses ; i++) {
+        if (universesReceived[i] == 0) {
+            sendFrame = 0;
+            break;
+        }
+    }
+
+    for (int i = 0; i < length / 3; i++) {
+        int led = i + (universe - startUniverse) * (previousDataLength / 3);
+        if (led < NUM_LEDS) {
+            artnet_leds[led] = CRGB(data[i*3], data[i*3+1], data[i*3+2]);
+        }
+    }
+    previousDataLength = length;
+
+    if (sendFrame) {
+        memset(universesReceived, 0, maxUniverses);
+    }
+}
+
+
 // Light member functions
 
 Light::Light() {
@@ -253,11 +305,12 @@ Light::Light() {
     _params[0] = 50;
 }
 
-Light::Light(String name, CRGB* leds, int num_leds) {
+Light::Light(String name, CRGB* leds, int offset, int num_leds) {
     _color = CRGB::White;
     _onoff = 0;
     _num_leds = num_leds;
-    _leds = leds;
+    _leds = &leds[offset];
+    _offset = offset;
     _name = name;
     _prog = &Light::_prog_solid;
     _count = 0;
@@ -381,27 +434,18 @@ CRGB Light::get_rgb() {
     return _color;
 }
 
-void Light::set_program(int prog_id) {
+void Light::set_program(char* program) {
     Serial.print("Setting program to ");
-    switch(prog_id) {
-        case 0:
-            _prog = &Light::_prog_solid;
-            break;
-        case 1:
-            _prog = &Light::_prog_chase;
-            break;
-        case 2:
-            _prog = &Light::_prog_fade;
-            break;
-        case 3:
-            _prog = &Light::_prog_warm;
-            _params[0] = 50;
-            break;
-        case 4:
-            _prog = &Light::_prog_lfo;
-        default:
-            break;
+    Serial.println(program);
+    if (strcmp(program, "solid")==0) _prog = &Light::_prog_solid;
+    if (strcmp(program, "chase")==0) _prog = &Light::_prog_chase;
+    if (strcmp(program, "fade")==0) _prog = &Light::_prog_fade;
+    if (strcmp(program, "warm")==0) {
+        _prog = &Light::_prog_warm;
+        _params[0] = 50;
     }
+    if (strcmp(program, "lfo")==0) _prog = &Light::_prog_lfo;
+    if (strcmp(program, "artnet")==0) _prog = &Light::_prog_artnet;
 }
 
 const char* Light::get_name() {
@@ -451,12 +495,13 @@ int Light::_prog_chase(int x) {
 }
 
 int Light::_prog_warm(int x) {
-    _prog_fade(1);
+    if (_count%7 == 0) _prog_fade(1);
     
-    if (_count%25 == 0) {
+    if (_count%11 == 0) {
         _index = random(_num_leds);
         CHSV wc = rgb2hsv_approximate(_color);
-        wc.h += random(20)-10;
+        wc.h = wc.h + random(11)-5;
+        wc.s = random(128)+128;
         wc.v &=x;
         _color = wc;
     }
@@ -482,4 +527,10 @@ int Light::_prog_longfade(int x) {
         if (!still_fading) _onoff = false;
     }
     return 0;
+}
+
+int Light::_prog_artnet(int x) {
+    for (int i=0; i<_num_leds; i++) {
+        _leds[i] = artnet_leds[_offset+i];
+    }
 }
