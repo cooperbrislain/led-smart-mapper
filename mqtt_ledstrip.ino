@@ -18,16 +18,18 @@
 #define CLOCK_PIN 22
 
 #ifndef DEVICE_NAME
-    #define DEVICE_NAME "esp32"
+    #define DEVICE_NAME "led-bridge"
 #endif
 
 #define NUM_LEDS 134
-#define NUM_LIGHTS 4
+#define NUM_LIGHTS 5
 
 #define halt(s) { Serial.println(F( s )); while(1);  }
 
-const char *wifi_ssid = WIFI_SSID;
-const char *wifi_pass = WIFI_PASS;
+#ifdef USE_WIFI
+    const char *wifi_ssid = WIFI_SSID;
+    const char *wifi_pass = WIFI_PASS;
+#endif
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length);
 void reconnect();
@@ -132,15 +134,15 @@ void setup() {
     mqtt_client.setCallback(mqtt_callback);
     // initialize lights;
     // TODO: Make this based off of a config file
-    // lights[0] = Light("downlight", &leds[0], 10, 57);
-    // lights[1] = Light("uplight", &leds[0], 67, 57);
-    // lights[2] = Light("workstation", &leds[0], 20, 20);
-    // lights[3] = Light("bench", &leds[0], 50, 17);
-    // lights[4] = Light("rightcube", &leds[0], 0, 10);
-    lights[0] = Light("shelf", &leds[0],0,15);
-    lights[1] = Light("left", &leds[0],0,5);
-    lights[2] = Light("center", &leds[5],5,5);
-    lights[3] = Light("right", &leds[10],10,5);
+    lights[0] = Light("downlight", &leds[0], 10, 57);
+    lights[1] = Light("uplight", &leds[0], 67, 57);
+    lights[2] = Light("workstation", &leds[0], 20, 20);
+    lights[3] = Light("bench", &leds[0], 50, 17);
+    lights[4] = Light("rightcube", &leds[0], 0, 10);
+    // lights[0] = Light("shelf", &leds[0],0,15);
+    // lights[1] = Light("left", &leds[0],0,5);
+    // lights[2] = Light("center", &leds[5],5,5);
+    // lights[3] = Light("right", &leds[10],10,5);
 
     #ifdef USE_ETHERNET
         Serial.println(F("Connecting to Ethernet..."));
