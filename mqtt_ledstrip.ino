@@ -14,8 +14,14 @@
 #include <ArduinoJson.h>
 #include <Artnet.h>
 
-#define DATA_PIN 21
-#define CLOCK_PIN 22
+#ifdef IS_MEGA
+    #define DATA_PIN 42
+    #define CLOCK_PIN 43
+#endif
+#ifdef IS_ESP32
+    #define DATA_PIN 21
+    #define CLOCK_PIN 22
+ #endif
 
 #ifndef DEVICE_NAME
     #define DEVICE_NAME "led-bridge"
