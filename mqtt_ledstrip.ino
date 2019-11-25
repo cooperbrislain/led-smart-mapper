@@ -250,7 +250,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
                 }
                 if (json.containsKey("Speed")) {
                     int val = json["Speed"].as<int>();
-                    Serial.printl("Setting speed to ");
+                    Serial.print("Setting speed to ");
                     Serial.println(val);
                     speed = val;
                 }
