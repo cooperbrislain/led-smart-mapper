@@ -140,15 +140,19 @@ void setup() {
     mqtt_client.setCallback(mqtt_callback);
     // initialize lights;
     // TODO: Make this based off of a config file
-    lights[0] = Light("downlight", &leds[0], 10, 57);
-    lights[1] = Light("uplight", &leds[0], 67, 57);
-    lights[2] = Light("workstation", &leds[0], 20, 20);
-    lights[3] = Light("bench", &leds[0], 50, 17);
-    lights[4] = Light("rightcube", &leds[0], 0, 10);
+
+    // lights[0] = Light("downlight", &leds[0], 10, 57);
+    // lights[1] = Light("uplight", &leds[0], 67, 57);
+    // lights[2] = Light("workstation", &leds[0], 20, 20);
+    // lights[3] = Light("bench", &leds[0], 50, 17);
+    // lights[4] = Light("rightcube", &leds[0], 0, 10);
+
     // lights[0] = Light("shelf", &leds[0],0,15);
     // lights[1] = Light("left", &leds[0],0,5);
     // lights[2] = Light("center", &leds[5],5,5);
     // lights[3] = Light("right", &leds[10],10,5);
+
+    lights[0] = Light("xmas", &leds[0], 0, 25);
 
     #ifdef USE_ETHERNET
         Serial.println(F("Connecting to Ethernet..."));
@@ -206,9 +210,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     payload[length] = '\0';
     char* tmp = strtok(topic,"/");
     char* name = strtok(NULL,"/");
-    if (strcmp(tmp, "speed") == 0) {
-        speed = atoi((char *)payload);
-    } else if (strcmp(tmp, DEVICE_NAME) == 0) {
+    if (strcmp(tmp, DEVICE_NAME) == 0) {
         for (int i=0; i<NUM_LIGHTS; i++) {
             if (strcmp(name, lights[i].get_name()) == 0) {
                 if (json.containsKey("On")) {
@@ -245,6 +247,12 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
                 if (json.containsKey("Program")) {
                     const char* program = json["Program"];
                     lights[i].set_program(program);
+                }
+                if (json.containsKey("Speed")) {
+                    int val = json["Speed"].as<int>();
+                    Serial.printl("Setting speed to ");
+                    Serial.println(val);
+                    speed = val;
                 }
             }
         }
