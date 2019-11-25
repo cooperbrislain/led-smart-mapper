@@ -1,0 +1,1 @@
+This sketch allows for the control of clusters of LEDs in an LED strip via MQTT.
