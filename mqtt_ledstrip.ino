@@ -1,11 +1,25 @@
 #include "config.h"
 
+#ifdef IS_MEGA
+    #define DATA_PIN 42
+    #define CLOCK_PIN 43
+    #define USE_ETHERNET
+#endif
+#ifdef IS_ESP32
+    #define DATA_PIN 21
+    #define CLOCK_PIN 22
+    #define USE_WIFI
+ #endif
 #ifdef USE_WIFI
     #include <WiFi.h>
 #endif
 #ifdef USE_ETHERNET
     #include <Ethernet.h>
 #endif
+#ifndef DEVICE_NAME
+    #define DEVICE_NAME "led-bridge"
+#endif
+
 #include <Dns.h>
 #include <SPI.h>
 #include <Dhcp.h>
@@ -13,19 +27,6 @@
 #include <FastLED.h>
 #include <ArduinoJson.h>
 #include <Artnet.h>
-
-#ifdef IS_MEGA
-    #define DATA_PIN 42
-    #define CLOCK_PIN 43
-#endif
-#ifdef IS_ESP32
-    #define DATA_PIN 21
-    #define CLOCK_PIN 22
- #endif
-
-#ifndef DEVICE_NAME
-    #define DEVICE_NAME "led-bridge"
-#endif
 
 #define NUM_LEDS 134
 #define NUM_LIGHTS 5
@@ -77,6 +78,7 @@ class Light {
         int _prog_chase(int x);
         int _prog_fade(int x);
         int _prog_warm(int x);
+        int _prog_xmas(int x);
         int _prog_lfo(int x);
         int _prog_fadeout(int x);
         int _prog_fadein(int x);
@@ -517,6 +519,21 @@ int Light::_prog_chase(int x) {
 }
 
 int Light::_prog_warm(int x) {
+    if (_count%7 == 0) _prog_fade(1);
+    
+    if (_count%11 == 0) {
+        _index = random(_num_leds);
+        CHSV wc = rgb2hsv_approximate(_color);
+        wc.h = wc.h + random(11)-5;
+        wc.s = random(128)+128;
+        wc.v &=x;
+        _color = wc;
+    }
+    _leds[_index] += _color;
+    return 0;
+}
+
+int Light::_prog_xmas(int x) {
     if (_count%7 == 0) _prog_fade(1);
     
     if (_count%11 == 0) {
