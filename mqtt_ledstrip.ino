@@ -293,22 +293,22 @@ void reconnect() {
 
 CRGB fadeTowardColor(CRGB cur, CRGB target, uint8_t x) {
     CRGB newc;
-    newc.red =  nblendU8TowardU8( cur.red,   target.red,   x);
-    newc.green = nblendU8TowardU8( cur.green, target.green, x);
-    newc.blue = nblendU8TowardU8( cur.blue,  target.blue,  x);
+    newc.red = nblendU8TowardU8(cur.red, target.red, x);
+    newc.green = nblendU8TowardU8(cur.green, target.green, x);
+    newc.blue = nblendU8TowardU8(cur.blue, target.blue, x);
     return newc;
 }
 
-uint8_t nblendU8TowardU8( uint8_t cur, const uint8_t target, uint8_t x) {
+uint8_t nblendU8TowardU8(uint8_t cur, const uint8_t target, uint8_t x) {
     uint8_t newc;
-    if( cur == target) return newc = cur;
-    if( cur < target ) {
+    if (cur == target) return newc = cur;
+    if (cur < target) {
         uint8_t delta = target - cur;
-        delta = scale8_video( delta, x);
+        delta = scale8_video(delta, x);
         newc = cur + delta;
     } else {
         uint8_t delta = cur - target;
-        delta = scale8_video( delta, x);
+        delta = scale8_video(delta, x);
         newc = cur - delta;
     }
     return newc;
@@ -328,7 +328,7 @@ void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* d
             break;
         }
     }
-
+    
     for (int i = 0; i < length / 3; i++) {
         int led = i + (universe - startUniverse) * (previousDataLength / 3);
         if (led < NUM_LEDS) {
