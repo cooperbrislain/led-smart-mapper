@@ -1,5 +1,13 @@
 #include "config.h"
 
+#include <Dns.h>
+#include <SPI.h>
+#include <Dhcp.h>
+#include <PubSubClient.h>
+#include <FastLED.h>
+#include <ArduinoJson.h>
+#include <Artnet.h>
+
 #ifdef IS_MEGA
     #define DATA_PIN 42
     #define CLOCK_PIN 43
@@ -9,7 +17,7 @@
     #define DATA_PIN 21
     #define CLOCK_PIN 22
     #define USE_WIFI
- #endif
+#endif
 #ifdef USE_WIFI
     #include <WiFi.h>
 #endif
@@ -20,16 +28,12 @@
     #define DEVICE_NAME "led-bridge"
 #endif
 
-#include <Dns.h>
-#include <SPI.h>
-#include <Dhcp.h>
-#include <PubSubClient.h>
-#include <FastLED.h>
-#include <ArduinoJson.h>
-#include <Artnet.h>
-
-#define NUM_LEDS 134
-#define NUM_LIGHTS 5
+#ifndef NUM_LEDS
+    #define NUM_LEDS 134
+#endif
+#ifndef NUM_LIGHTS
+    #define NUM_LIGHTS 1
+#endif
 
 #define halt(s) { Serial.println(F( s )); while(1);  }
 
@@ -128,7 +132,12 @@ void setup() {
     delay(10);
     // initialize fastled and test all lights
 
-    FastLED.addLeds<APA102, DATA_PIN, CLOCK_PIN, BGR, DATA_RATE_MHZ(24)>(leds, NUM_LEDS);
+    #ifdef IS_APA102
+        FastLED.addLeds<APA102, DATA_PIN, CLOCK_PIN, BGR, DATA_RATE_MHZ(24)>(leds, NUM_LEDS);
+    #endif
+    #ifdef IS_WS2801
+        FastLED.addLeds<WS2801, DATA_PIN, CLOCK_PIN, RGB>(leds, NUM_LEDS);
+    #endif
     for (int i=0; i<NUM_LEDS; i++) {
         leds[i] = CRGB::White; // blink white
     }
