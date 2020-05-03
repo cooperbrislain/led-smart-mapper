@@ -29,7 +29,7 @@
 #endif
 
 #ifndef NUM_LEDS
-    #define NUM_LEDS 134
+    #define NUM_LEDS 25
 #endif
 #ifndef NUM_LIGHTS
     #define NUM_LIGHTS 1
@@ -96,7 +96,7 @@ class Light {
 // Ethernet Vars
 byte mac[] = { 0xDA, 0x3D, 0xB3, 0xF3, 0xF0, 0x3D };
 byte broadcast[] = { 192,168,0,255};
-byte ip[] = { 192,168,0,101 };
+byte ip[] = { 192,168,1,101 };
 
 const char* mqtt_server = MQTT_HOST;
 const int mqtt_port = 1883;
