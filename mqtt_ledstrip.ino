@@ -29,10 +29,13 @@
 #endif
 
 #ifndef NUM_LEDS
-    #define NUM_LEDS 25
+    #define NUM_LEDS 97
 #endif
 #ifndef NUM_LIGHTS
-    #define NUM_LIGHTS 1
+    #define NUM_LIGHTS 3
+#endif
+#ifndef BRIGHTNESS_SCALE
+    #define BRIGHTNESS_SCALE 50
 #endif
 
 #define halt(s) { Serial.println(F( s )); while(1);  }
@@ -94,9 +97,9 @@ class Light {
 };
 
 // Ethernet Vars
-byte mac[] = { 0xDA, 0x3D, 0xB3, 0xF3, 0xF0, 0x3D };
-byte broadcast[] = { 192,168,0,255};
-byte ip[] = { 192,168,1,101 };
+byte mac[] = ETH_MAC;
+byte broadcast[] = ETH_BROADCAST;
+byte ip[] = ETH_IP;
 
 const char* mqtt_server = MQTT_HOST;
 const int mqtt_port = 1883;
@@ -131,7 +134,7 @@ void setup() {
     Serial.println("Starting up MQTT LED Controller");
     delay(10);
     // initialize fastled and test all lights
-
+    FastLED.setBrightness(BRIGHTNESS_SCALE);
     #ifdef IS_APA102
         FastLED.addLeds<APA102, DATA_PIN, CLOCK_PIN, BGR, DATA_RATE_MHZ(24)>(leds, NUM_LEDS);
     #endif
@@ -163,7 +166,10 @@ void setup() {
     // lights[2] = Light("center", &leds[5],5,5);
     // lights[3] = Light("right", &leds[10],10,5);
 
-    lights[0] = Light("xmas", &leds[0], 0, 25);
+    #ifndef LIGHTS
+        lights[0] = Light("light", &leds[0], 0, NUM_LEDS);
+    #endif
+
 
     #ifdef USE_ETHERNET
         Serial.println(F("Connecting to Ethernet..."));
