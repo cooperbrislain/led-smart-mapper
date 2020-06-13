@@ -33,10 +33,10 @@
 #endif
 
 #ifndef NUM_LEDS
-    #define NUM_LEDS 97
+    #define NUM_LEDS 25
 #endif
 #ifndef NUM_LIGHTS
-    #define NUM_LIGHTS 3
+    #define NUM_LIGHTS 1
 #endif
 #ifndef BRIGHTNESS_SCALE
     #define BRIGHTNESS_SCALE 50
@@ -121,6 +121,7 @@ class Light {
 #endif
 
 CRGB leds[NUM_LEDS];
+
 Light lights[NUM_LIGHTS];
 
 #ifndef NONET
@@ -155,7 +156,7 @@ int speed = 500;
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("Starting up MQTT LED Controller");
+    Serial.println("Starting up LED Controller");
     delay(10);
     FastLED.setBrightness(BRIGHTNESS_SCALE);
     #ifdef IS_APA102
@@ -164,34 +165,37 @@ void setup() {
     #ifdef IS_WS2801
         FastLED.addLeds<WS2801, DATA_PIN, CLOCK_PIN, RGB>(leds, NUM_LEDS);
     #endif
-    blink();
-    #ifndef NONET
-        mqtt_client.setServer(mqtt_server, mqtt_port);
-        mqtt_client.setCallback(mqtt_callback);
-    #endif
-
-    #ifndef LIGHTS
+    #ifdef LIGHT_NAMES
+        for (int i=0; i<NUM_LIGHTS; i++) {
+            lights[i] = Light(LIGHTS_NAMES[i], &leds, LIGHT_OFFSETS[i], LIGHT_LENGTHS[i]);
+        }
+    #else
         lights[0] = Light("light", &leds[0], 0, NUM_LEDS);
     #endif
 
-    #ifdef USE_ETHERNET
-        Serial.println(F("Connecting to Ethernet..."));
-        while (!Ethernet.begin(mac)) {
-            Serial.println(F("Ethernet configuration failed."));
-            delay(500);
-        }
-        IPAddress localip = Ethernet.localIP();
-    #endif
-    #ifdef USE_WIFI
-        WiFi.begin(wifi_ssid, wifi_pass);
-        while (WiFi.status() != WL_CONNECTED) {
-            Serial.println("Connecting to WiFi...");
-            delay(500);
-        }
-        IPAddress localip = WiFi.localIP();
-    #endif
+    blink();
 
     #ifndef NONET
+        #ifdef USE_ETHERNET
+            Serial.println(F("Connecting to Ethernet..."));
+            while (!Ethernet.begin(mac)) {
+                Serial.println(F("Ethernet configuration failed."));
+                delay(500);
+            }
+            IPAddress localip = Ethernet.localIP();
+        #endif
+        #ifdef USE_WIFI
+            WiFi.begin(wifi_ssid, wifi_pass);
+            while (WiFi.status() != WL_CONNECTED) {
+                Serial.println("Connecting to WiFi...");
+                delay(500);
+            }
+            IPAddress localip = WiFi.localIP();
+        #endif
+
+        mqtt_client.setServer(mqtt_server, mqtt_port);
+        mqtt_client.setCallback(mqtt_callback);
+        
         broadcast[0] = ip[0] = localip[0];
         broadcast[1] = ip[1] = localip[1];
         broadcast[2] = ip[2] = localip[2];
@@ -213,6 +217,8 @@ void setup() {
             artnet.setArtDmxCallback(onDmxFrame);
             Serial.println("Artnet Initialized");
         #endif
+
+        blink_rainbow();
     #endif
 
     delay(150);
