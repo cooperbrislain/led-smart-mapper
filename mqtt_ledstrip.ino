@@ -165,12 +165,13 @@ void setup() {
     #ifdef IS_WS2801
         FastLED.addLeds<WS2801, DATA_PIN, CLOCK_PIN, RGB>(leds, NUM_LEDS);
     #endif
-    #ifdef LIGHT_NAMES
-        for (int i=0; i<NUM_LIGHTS; i++) {
-            lights[i] = Light(LIGHTS_NAMES[i], &leds, LIGHT_OFFSETS[i], LIGHT_LENGTHS[i]);
-        }
+    #ifdef LIGHTS
+        lights = LIGHTS;
     #else
-        lights[0] = Light("light", &leds[0], 0, NUM_LEDS);
+        // lights[0] = new Light{ "light", &leds[0], 0, NUM_LEDS);
+        lights[0] = Light("front", &leds[0], 0, 27);
+        lights[1] = Light("left", &leds[0], 27, 35);
+        lights[2] = Light("right", &leds[0], 62, 35);
     #endif
 
     blink();
