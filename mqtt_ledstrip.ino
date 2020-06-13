@@ -248,6 +248,7 @@ void blink() {
 }
 
 void blink_rainbow() {
+    CHSV color;
     for (int t=0; t<100; t++) {
         color = CHSV((t*5)%255, 255, sin(PI*t/100));
         for (int i=0; i<NUM_LEDS; i++) {
