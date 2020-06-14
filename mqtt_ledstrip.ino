@@ -2,6 +2,7 @@
 
 #include <SPI.h>
 #include <FastLED.h>
+
 #ifndef NONET
     #include <Dns.h>
     #include <Dhcp.h>
@@ -38,6 +39,9 @@
 #ifndef NUM_LIGHTS
     #define NUM_LIGHTS 1
 #endif
+#ifndef NUM_PARAMS
+    #define NUM_PARAMS 3
+#endif
 #ifndef BRIGHTNESS_SCALE
     #define BRIGHTNESS_SCALE 50
 #endif
@@ -63,7 +67,7 @@ void blink_rainbow();
 
 class Light {
     public:
-        Light(String name, CRGB* leds, int offset, int num_leds);
+        Light(String name, CRGB* leds, int offset, int num_leds, int inverse=0);
         Light();
 
         const char* get_name();
@@ -77,6 +81,8 @@ class Light {
         void set_hsv(int hue, int sat, int val);
         void set_hsv(CHSV);
         void set_program(const char* program);
+        void set_param(int p, int v);
+        void set_params(int* params);
         CRGB get_rgb();
         CHSV get_hsv();
         #ifndef NONET
@@ -85,9 +91,9 @@ class Light {
         void update();
 
     private:
-        int _params [3];
-        CRGB* _leds;
+        CRGB** _leds;
         CRGB _color;
+        int _params [NUM_PARAMS];
         int _num_leds;
         int _offset;
         int _last_brightness;
@@ -332,14 +338,21 @@ void blackout() {
                         speed = val;
                     }
                     if (json.containsKey("Params")) {
-                        int *params = json["Params"]as<int*>();
-                        for (int j=0; sizeof(params); j++) {
-                            _params[j] = params[j];
+                        Serial.println("Setting params");
+                        JsonArray params = json["Params"].as<JsonArray>();
+                        for (int p=0; p<sizeof(params); p++) {
+                            int v = params[i].as<int>();
                             Serial.print("Setting param ");
-                            Serial.print(j);
+                            Serial.print(p);
                             Serial.print(" to ");
-                            Serial.print(_params[j]);
+                            Serial.print(v);
+                            lights[i].set_param(p, v);
                         }
+                    }
+                    if (json.containsKey("Param")) {
+                        int p = json["Param"]["p"];
+                        int v = json["Param"]["v"];
+                        lights[i].set_param(p, v);
                     }
                 }
             }
@@ -427,18 +440,19 @@ Light::Light() {
     _color = CRGB::White;
     _onoff = 0;
     _num_leds = 0;
-    _leds = 0;
     _name = "light";
     _prog = &Light::_prog_solid;
     _count = 0;
     _params[0] = 50;
 }
 
-Light::Light(String name, CRGB* leds, int offset, int num_leds) {
+Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
     _color = CRGB::White;
     _onoff = 0;
     _num_leds = num_leds;
-    _leds = &leds[offset];
+    for (int i=0; i<num_leds; i++) {
+        _leds[i] = inverse? &leds[num_leds-i-1] : &leds[i];
+    }
     _offset = offset;
     _name = name;
     _prog = &Light::_prog_solid;
@@ -566,6 +580,16 @@ void Light::set_program(const char* program) {
     #endif
 }
 
+void Light::set_params(int* params) {
+    for (int i=0; i<sizeof(params); i++) {
+        _params[i] = params[i];
+    }
+}
+
+void Light::set_param(int p, int v) {
+    _params[p] = v;
+}
+
 const char* Light::get_name() {
     return _name.c_str();
 }
@@ -574,14 +598,14 @@ const char* Light::get_name() {
 
 int Light::_prog_solid(int x) {
     for (int i=0; i<_num_leds; i++) {
-        _leds[i] = _color;
+        *_leds[i] = _color;
     }
     return 0;
 }
 
 int Light::_prog_fade(int x) {
     for(int i=0; i<_num_leds; i++) {
-        _leds[i].fadeToBlackBy(x);
+        _leds[i]->fadeToBlackBy(x);
     }
     return 0;
 }
@@ -589,8 +613,8 @@ int Light::_prog_fade(int x) {
 int Light::_prog_fadein(int x) {
     bool still_fading = false;
     for(int i=0; i<_num_leds; i++) {
-        _leds[i] = fadeTowardColor(_leds[i], _color, 1);
-        if (_leds[i] != _color) still_fading = true;
+        *_leds[i] = fadeTowardColor(*_leds[i], _color, 1);
+        if (*_leds[i] != _color) still_fading = true;
     }
     if (!still_fading) _prog = &Light::_prog_solid;
     return 0;
@@ -599,8 +623,8 @@ int Light::_prog_fadein(int x) {
 int Light::_prog_fadeout(int x) {
     bool still_fading = false;
     for(int i=0; i<_num_leds; i++) {
-        _leds[i].fadeToBlackBy(1);
-        if (_leds[i]) still_fading = true;
+        _leds[i]->fadeToBlackBy(1);
+        if (*_leds[i]) still_fading = true;
     }
     if (!still_fading) _onoff = false;
     return 0;
@@ -608,7 +632,7 @@ int Light::_prog_fadeout(int x) {
 
 int Light::_prog_chase(int x) {
     _prog_fade(25);
-    _leds[_count%_num_leds] = _color;
+    *_leds[_count%_num_leds] = _color;
     return 0;
 }
 
@@ -623,7 +647,7 @@ int Light::_prog_warm(int x) {
         wc.v &=x;
         _color = wc;
     }
-    _leds[_index] += _color;
+    *_leds[_index] += _color;
     return 0;
 }
 
@@ -638,7 +662,7 @@ int Light::_prog_xmas(int x) {
         wc.v &=x;
         _color = wc;
     }
-    _leds[_index] += _color;
+    *_leds[_index] += _color;
     return 0;
 }
 
@@ -646,7 +670,7 @@ int Light::_prog_lfo(int x) {
     int wc = _color;
     wc%=(int)round((sin(_count*3.14/180)+0.5)*255);
     for(int i=0; i<_num_leds; i++) {
-        _leds[i] = wc;
+        *_leds[i] = wc;
     }
     return 0;
 }
@@ -655,8 +679,8 @@ int Light::_prog_longfade(int x) {
     bool still_fading = false;
     if(_count%10 == 0) {
         for(int i=0; i<_num_leds; i++) {
-            _leds[i].fadeToBlackBy(1);
-            if (_leds[i]) still_fading = true;
+            _leds[i]->fadeToBlackBy(1);
+            if (*_leds[i]) still_fading = true;
         }
         if (!still_fading) _onoff = false;
     }
@@ -668,7 +692,7 @@ int Light::_prog_blink(int x) {
     if (!x) x = 25;
     if (_count%x == 0) {
         for(int i=0; i<_num_leds; i++) {
-            _leds[i] = _color;
+            *_leds[i] = _color;
         }
     }
     return 0;
@@ -677,7 +701,7 @@ int Light::_prog_blink(int x) {
 #ifdef ARTNET
     int Light::_prog_artnet(int x) {
         for (int i=0; i<_num_leds; i++) {
-            _leds[i] = artnet_leds[_offset+i];
+           & _leds[i] = artnet_leds[_offset+i];
         }
     }
 #endif
