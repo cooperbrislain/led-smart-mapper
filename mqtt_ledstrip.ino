@@ -160,7 +160,7 @@ Light lights[NUM_LIGHTS];
     PubSubClient mqtt_client(net_client);
 #endif
 
-int speed = 100;
+int speed = GLOBAL_SPEED;
 
 void setup() {
     Serial.begin(115200);
@@ -450,7 +450,7 @@ Light::Light() {
     _name = "light";
     _prog = &Light::_prog_solid;
     _count = 0;
-    _params[0] = 50;
+    _params[NUM_PARAMS] = {};
 }
 
 Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
@@ -589,7 +589,10 @@ void Light::set_program(const char* program) {
     Serial.print("Setting program to ");
     Serial.println(program);
     if (strcmp(program, "solid")==0) _prog = &Light::_prog_solid;
-    if (strcmp(program, "chase")==0) _prog = &Light::_prog_chase;
+    if (strcmp(program, "chase")==0) {
+        _prog = &Light::_prog_chase;
+        _params[1] = _params[1]? _params[1] : 35;
+    }
     if (strcmp(program, "fade")==0)  _prog = &Light::_prog_fade;
     if (strcmp(program, "blink")==0) _prog = &Light::_prog_blink;
     if (strcmp(program, "warm")==0) {
@@ -653,7 +656,9 @@ int Light::_prog_fadeout(int x) {
 }
 
 int Light::_prog_chase(int x) {
-    _prog_fade(25);
+    // params: 1: Chase Speed
+    //         1: Fade Speed
+    _prog_fade(_params[1]);
     *_leds[_count%_num_leds] = _color;
     return 0;
 }
