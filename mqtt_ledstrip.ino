@@ -257,6 +257,7 @@ void loop() {
     for(int i=0; i<NUM_LIGHTS; i++) {
         lights[i].update();
     }
+    FastLED.show();
     delay(1000/speed);
 }
 
@@ -500,7 +501,6 @@ Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
 void Light::update() {
     if (_onoff == 1) {
         (this->*_prog)(_params[0]);
-        FastLED.show();
         _count++;
         
     }
@@ -590,7 +590,7 @@ void Light::set_program(const char* program) {
     Serial.println(program);
     if (strcmp(program, "solid")==0) _prog = &Light::_prog_solid;
     if (strcmp(program, "chase")==0) _prog = &Light::_prog_chase;
-    if (strcmp(program, "fade")==0) _prog = &Light::_prog_fade;
+    if (strcmp(program, "fade")==0)  _prog = &Light::_prog_fade;
     if (strcmp(program, "blink")==0) _prog = &Light::_prog_blink;
     if (strcmp(program, "warm")==0) {
         _prog = &Light::_prog_warm;
