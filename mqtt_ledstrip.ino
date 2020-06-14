@@ -97,6 +97,7 @@ class Light {
         unsigned int _index;
         int _prog_solid(int x);
         int _prog_chase(int x);
+        int _prog_blink(int x);
         int _prog_fade(int x);
         int _prog_warm(int x);
         int _prog_xmas(int x);
@@ -330,6 +331,16 @@ void blackout() {
                         Serial.println(val);
                         speed = val;
                     }
+                    if (json.containsKey("Params")) {
+                        int *params = json["Params"]as<int*>();
+                        for (int j=0; sizeof(params); j++) {
+                            _params[j] = params[j];
+                            Serial.print("Setting param ");
+                            Serial.print(j);
+                            Serial.print(" to ");
+                            Serial.print(_params[j]);
+                        }
+                    }
                 }
             }
         }
@@ -544,6 +555,7 @@ void Light::set_program(const char* program) {
     if (strcmp(program, "solid")==0) _prog = &Light::_prog_solid;
     if (strcmp(program, "chase")==0) _prog = &Light::_prog_chase;
     if (strcmp(program, "fade")==0) _prog = &Light::_prog_fade;
+    if (strcmp(program, "blink")==0) _prog = &Light::_prog_blink;
     if (strcmp(program, "warm")==0) {
         _prog = &Light::_prog_warm;
         _params[0] = 50;
@@ -636,6 +648,7 @@ int Light::_prog_lfo(int x) {
     for(int i=0; i<_num_leds; i++) {
         _leds[i] = wc;
     }
+    return 0;
 }
 
 int Light::_prog_longfade(int x) {
@@ -646,6 +659,17 @@ int Light::_prog_longfade(int x) {
             if (_leds[i]) still_fading = true;
         }
         if (!still_fading) _onoff = false;
+    }
+    return 0;
+}
+
+int Light::_prog_blink(int x) {
+    _prog_fade(25);
+    if (!x) x = 25;
+    if (_count%x == 0) {
+        for(int i=0; i<_num_leds; i++) {
+            _leds[i] = _color;
+        }
     }
     return 0;
 }
