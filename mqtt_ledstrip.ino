@@ -152,7 +152,7 @@ Light lights[NUM_LIGHTS];
     PubSubClient mqtt_client(net_client);
 #endif
 
-int speed = 500;
+int speed = 100;
 
 void setup() {
     Serial.begin(115200);
@@ -169,9 +169,12 @@ void setup() {
         lights = LIGHTS;
     #else
         // lights[0] = new Light{ "light", &leds[0], 0, NUM_LEDS);
-        lights[0] = Light("front", &leds[0], 0, 27);
-        lights[1] = Light("left", &leds[0], 27, 35);
-        lights[2] = Light("right", &leds[0], 62, 35);
+        // lights[0] = Light("left", &leds[0], 0, 35);
+        // lights[1] = Light("right", &leds[35], 35, 35);
+        // lights[2] = Light("front", &leds[70], 70, 27);
+        lights[0] = Light("left", &leds[0], 0, 9);
+        lights[1] = Light("front", &leds[0], 9, 9);
+        lights[2] = Light("right", &leds[0], 18, 9);
     #endif
 
     blink();
@@ -204,13 +207,12 @@ void setup() {
         broadcast[3] = 0xff;
         for (int i=0; i<NUM_LEDS; i++) {
             leds[i] = CRGB::Black; 
-            FastLED.show();
-            delay(10);
         }
+        FastLED.show();
+        delay(100);
         Serial.println(F("Network configured via DHCP"));
         Serial.print("IP address: ");
         Serial.println(localip);
-
         #ifdef ARTNET
             Serial.println("Initializing Artnet");
             artnet.begin(mac, ip);
@@ -220,6 +222,9 @@ void setup() {
         #endif
 
         blink_rainbow();
+        delay(100);
+        blackout();
+        Serial.println("Setup complete, starting...");
     #endif
 
     delay(150);
@@ -257,13 +262,20 @@ void blink() {
 void blink_rainbow() {
     CHSV color;
     for (int t=0; t<100; t++) {
-        color = CHSV((t*5)%255, 255, sin(PI*t/100));
+        color = CHSV((t*5)%255, 255, 100);
         for (int i=0; i<NUM_LEDS; i++) {
-            leds[i] = CRGB::White;
+            leds[i] = color;
         }
         FastLED.show();
         delay(10);
     }
+}
+
+void blackout() {
+    for (int i=0; i<NUM_LEDS; i++) {
+        leds[i] = CRGB::Black;
+    }
+    FastLED.show();
 }
 
 #ifndef NONET
@@ -583,8 +595,8 @@ int Light::_prog_fadeout(int x) {
 }
 
 int Light::_prog_chase(int x) {
-    _prog_fade(6);
-    leds[_count%_num_leds] = _color;
+    _prog_fade(25);
+    _leds[_count%_num_leds] = _color;
     return 0;
 }
 
