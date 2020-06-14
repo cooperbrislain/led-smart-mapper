@@ -73,6 +73,7 @@ class Light {
         const char* get_name();
         void turn_on();
         void turn_off();
+        void blink();
         void toggle();
         void set_hue(int val);
         void set_brightness(int val);
@@ -172,19 +173,24 @@ void setup() {
     #ifdef IS_WS2801
         FastLED.addLeds<WS2801, DATA_PIN, CLOCK_PIN, RGB>(leds, NUM_LEDS);
     #endif
+
+    blink();
+
+    Serial.println("LEDs initialized");
+
     #ifdef LIGHTS
         lights = LIGHTS;
     #else
-        // lights[0] = new Light{ "light", &leds[0], 0, NUM_LEDS);
-        // lights[0] = Light("left", &leds[0], 0, 35);
-        // lights[1] = Light("right", &leds[35], 35, 35);
-        // lights[2] = Light("front", &leds[70], 70, 27);
-        lights[0] = Light("left", &leds[0], 0, 9);
+        lights[0] = Light("left", &leds[0], 0, 9, 1);
         lights[1] = Light("front", &leds[0], 9, 9);
         lights[2] = Light("right", &leds[0], 18, 9);
     #endif
 
-    blink();
+    for (Light light : lights) {
+        light.blink();
+    }
+
+    Serial.println("Light Mapping Initialized");
 
     #ifndef NONET
         #ifdef USE_ETHERNET
@@ -450,8 +456,12 @@ Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
     _color = CRGB::White;
     _onoff = 0;
     _num_leds = num_leds;
+    _leds = new CRGB*[num_leds];
+    Serial.print("Mapping Light ");
+    Serial.println(name);
     for (int i=0; i<num_leds; i++) {
-        _leds[i] = inverse? &leds[num_leds-i-1] : &leds[i];
+        Serial.println(i);
+       _leds[i] = inverse? &leds[offset+num_leds-i-1] : &leds[offset+i];
     }
     _offset = offset;
     _name = name;
@@ -507,6 +517,18 @@ void Light::turn_off() {
          _prog = &Light::_prog_fadeout;
          update();
     }
+}
+
+void Light::blink() {
+    for (int i=0; i<_num_leds; i++) {
+        *(CRGB*)_leds[i] = CRGB::White;
+    }
+    update();
+    delay(25);
+    for (int i=0; i<_num_leds; i++) {
+        *(CRGB*)_leds[i] = CRGB::Black;
+    }
+    update();
 }
 
 void Light::toggle() {
@@ -691,6 +713,7 @@ int Light::_prog_blink(int x) {
     _prog_fade(25);
     if (!x) x = 25;
     if (_count%x == 0) {
+        Serial.println("blink");
         for(int i=0; i<_num_leds; i++) {
             *_leds[i] = _color;
         }
