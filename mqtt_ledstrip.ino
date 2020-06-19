@@ -32,6 +32,10 @@
 #ifndef DEVICE_NAME
     #define DEVICE_NAME "led-bridge"
 #endif
+#ifdef TOUCH
+    #define TOUCH_PIN T0
+    int touch_value = 100;
+#endif
 
 #ifndef NUM_LEDS
     #define NUM_LEDS 25
@@ -128,6 +132,10 @@ class Light {
     byte mac[] = ETH_MAC;
     byte broadcast[] = ETH_BROADCAST;
     byte ip[] = ETH_IP;
+#else
+    byte mac[6] = { };
+    byte broadcast[4] = { };
+    byte ip[4] = { };
 #endif
 
 CRGB leds[NUM_LEDS];
@@ -217,7 +225,7 @@ void setup() {
 
         mqtt_client.setServer(mqtt_server, mqtt_port);
         mqtt_client.setCallback(mqtt_callback);
-        
+
         broadcast[0] = ip[0] = localip[0];
         broadcast[1] = ip[1] = localip[1];
         broadcast[2] = ip[2] = localip[2];
