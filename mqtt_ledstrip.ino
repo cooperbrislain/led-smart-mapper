@@ -3,7 +3,7 @@
 #include <SPI.h>
 #include <FastLED.h>
 
-#ifndef NONET
+#ifndef NO_NETWORK
     #include <Dns.h>
     #include <Dhcp.h>
     #include <PubSubClient.h>
@@ -53,7 +53,7 @@
     const char *wifi_pass = WIFI_PASS;
 #endif
 
-#ifndef NONET
+#ifndef NO_NETWORK
     void mqtt_callback(char* topic, byte* payload, unsigned int length);
 
     #ifdef ARTNET
@@ -75,6 +75,7 @@ class Light {
         void turn_off();
         void blink();
         void toggle();
+        void set_speed(int val);
         void set_hue(int val);
         void set_brightness(int val);
         void set_saturation(int val);
@@ -86,7 +87,7 @@ class Light {
         void set_params(int* params);
         CRGB get_rgb();
         CHSV get_hsv();
-        #ifndef NONET
+        #ifndef NO_NETWORK
             void initialize();
         #endif
         void update();
@@ -95,6 +96,7 @@ class Light {
         CRGB** _leds;
         CRGB _color;
         int _params [NUM_PARAMS];
+        int _speed;
         int _num_leds;
         int _offset;
         int _last_brightness;
@@ -113,7 +115,7 @@ class Light {
         int _prog_fadein(int x);
         int _prog_longfade(int x);
         int (Light::*_prog)(int x);
-        #ifndef NONET
+        #ifndef NO_NETWORK
             void subscribe();
             // void add_to_homebridge();
             #ifdef ARTNET 
@@ -122,7 +124,7 @@ class Light {
         #endif
 };
 
-#ifndef NONET
+#ifdef USE_ETHERNET
     byte mac[] = ETH_MAC;
     byte broadcast[] = ETH_BROADCAST;
     byte ip[] = ETH_IP;
@@ -132,7 +134,7 @@ CRGB leds[NUM_LEDS];
 
 Light lights[NUM_LIGHTS];
 
-#ifndef NONET
+#ifndef NO_NETWORK
     #ifdef ARTNET
         Artnet artnet;
         CRGB artnet_leds [NUM_LEDS];
@@ -162,6 +164,8 @@ Light lights[NUM_LIGHTS];
 
 int speed = GLOBAL_SPEED;
 
+int count = 0;
+
 void setup() {
     Serial.begin(115200);
     Serial.println("Starting up LED Controller");
@@ -181,9 +185,10 @@ void setup() {
     #ifdef LIGHTS
         lights = LIGHTS;
     #else
-        lights[0] = Light("left", &leds[0], 0, 9, 1);
-        lights[1] = Light("front", &leds[0], 9, 9);
-        lights[2] = Light("right", &leds[0], 18, 9);
+        lights[0] = Light("front", &leds[0], 0, 25);
+        lights[1] = Light("left", &leds[0], 25, 25, 25);
+        lights[2] = Light("right", &leds[0], 50, 25);
+        lights[3] = Light("rear", &leds[0], 75, 25);
     #endif
 
     for (Light light : lights) {
@@ -192,7 +197,7 @@ void setup() {
 
     Serial.println("Light Mapping Initialized");
 
-    #ifndef NONET
+    #ifndef NO_NETWORK
         #ifdef USE_ETHERNET
             Serial.println(F("Connecting to Ethernet..."));
             while (!Ethernet.begin(mac)) {
@@ -244,7 +249,7 @@ void setup() {
 }
 
 void loop() {
-    #ifndef NONET
+    #ifndef NO_NETWORK
         if (!mqtt_client.connected()) {
             Serial.println("Reconnecting...");
             reconnect();
@@ -258,6 +263,7 @@ void loop() {
         lights[i].update();
     }
     FastLED.show();
+    count++;
     delay(1000/speed);
 }
 
@@ -292,15 +298,17 @@ void blackout() {
     FastLED.show();
 }
 
-#ifndef NONET
+#ifndef NO_NETWORK
 
     void mqtt_callback(char* topic, byte* payload, unsigned int length) {
         DynamicJsonDocument json(1024);
         deserializeJson(json, (char *)payload);
         payload[length] = '\0';
-        char* tmp = strtok(topic,"/");
+        char* device = strtok(topic,"/");
         char* name = strtok(NULL,"/");
-        if (strcmp(tmp, DEVICE_NAME) == 0) {
+        if (strcmp(device, DEVICE_NAME) == 0
+            || strcmp(device, "global") == 0
+            || strcmp(device, "all" == 0)) {
             for (int i=0; i<NUM_LIGHTS; i++) {
                 if (strcmp(name, lights[i].get_name()) == 0) {
                     if (json.containsKey("On")) {
@@ -340,9 +348,13 @@ void blackout() {
                     }
                     if (json.containsKey("Speed")) {
                         int val = json["Speed"].as<int>();
-                        Serial.print("Setting speed to ");
-                        Serial.println(val);
-                        speed = val;
+                        if (device == "global") {
+                            Serial.print("Setting speed to ");
+                            Serial.println(val);
+                            speed = val;
+                        } else {
+                            lights[i].set_speed(val);
+                        }
                     }
                     if (json.containsKey("Params")) {
                         Serial.println("Setting params");
@@ -373,7 +385,11 @@ void blackout() {
             // Attempt to connect
             if (mqtt_client.connect(mqtt_id,mqtt_username,mqtt_key)) {
                 Serial.println("connected");
-                char *name;
+                char feed[128];
+                sprintf(feed, "/%s/global", DEVICE_NAME);
+                mqtt_client.subscribe(feed);
+                sprintf(feed, "/%s/all", DEVICE_NAME);
+                mqtt_client.subscribe(feed);
                 for(int i=0; i<NUM_LIGHTS; i++) {
                     lights[i].initialize();
                 }
@@ -447,6 +463,7 @@ Light::Light() {
     _color = CRGB::White;
     _onoff = 0;
     _num_leds = 0;
+    _speed = 1;
     _name = "light";
     _prog = &Light::_prog_solid;
     _count = 0;
@@ -457,11 +474,11 @@ Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
     _color = CRGB::White;
     _onoff = 0;
     _num_leds = num_leds;
+    _speed = 1;
     _leds = new CRGB*[num_leds];
     Serial.print("Mapping Light ");
     Serial.println(name);
     for (int i=0; i<num_leds; i++) {
-        Serial.println(i);
        _leds[i] = inverse? &leds[offset+num_leds-i-1] : &leds[offset+i];
     }
     _offset = offset;
@@ -470,12 +487,12 @@ Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
     _count = 0;
 }
 
-#ifndef NONET
+#ifndef NO_NETWORK
 
     void Light::subscribe() {
-        char tmp[128];
-        sprintf(tmp, "/%s/%s", DEVICE_NAME, _name.c_str());
-        String feed = tmp;
+        char device[128];
+        sprintf(device, "/%s/%s", DEVICE_NAME, _name.c_str());
+        String feed = device;
         if(!mqtt_client.subscribe(feed.c_str())) {
             Serial.print("Failed to subscribe to feed: ");
             Serial.println(feed);
@@ -499,10 +516,9 @@ Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
 #endif
 
 void Light::update() {
-    if (_onoff == 1) {
+    if (_onoff == 1 && count%_speed == 0) {
         (this->*_prog)(_params[0]);
         _count++;
-        
     }
 }
 
@@ -613,6 +629,10 @@ void Light::set_params(int* params) {
 
 void Light::set_param(int p, int v) {
     _params[p] = v;
+}
+
+void Light::set_speed(int s) {
+    _speed = s;
 }
 
 const char* Light::get_name() {
