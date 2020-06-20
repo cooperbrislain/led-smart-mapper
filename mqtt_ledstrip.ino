@@ -75,9 +75,20 @@ void blackout();
 uint8_t nblendU8TowardU8(uint8_t cur, const uint8_t target, uint8_t x);
 typedef void(*ControlFn)(int);
 
-ControlFn default_pressFn = [](int val){ Serial.println('default pressFn'); };
-ControlFn default_releaseFn = [](int val){ Serial.println('default releaseFn'); };
-ControlFn default_stilldownFn = [](int val){ Serial.println('default stilldownFn'); };
+ControlFn default_pressFn = [](int val){
+    Serial.print("default pressFn");
+    Serial.println(val);
+};
+
+ControlFn default_releaseFn = [](int val){
+    Serial.print("default releaseFn");
+    Serial.println(val);
+};
+
+ControlFn default_stilldownFn = [](int val){
+    Serial.print("default stilldownFn");
+    Serial.println(val);
+};
 
 class TouchControl {
     public:
@@ -95,21 +106,31 @@ class TouchControl {
             int pin,
             int threshold,
             ControlFn pressFn
-            ) :
+        ) :
             _pressFn { pressFn },
             _releaseFn { default_releaseFn },
-            _stilldownFn { default_pressFn },
+            _stilldownFn { default_stilldownFn },
             _pin { pin },
             _name { name },
             _threshold { threshold }
-            {
-
-            };
+            { };
+        TouchControl(
+            String name,
+            int pin,
+            int threshold,
+            ControlFn pressFn,
+            ControlFn stilldownFn,
+            ControlFn releaseFn
+        ) :
+            _name { name },
+            _pin { pin },
+            _threshold { threshold },
+            _pressFn { pressFn },
+            _releaseFn { releaseFn },
+            _stilldownFn { stilldownFn }
+        { };
         TouchControl(String name, int pin, int threshold);
-        int get_state();
-        void press();
-        void release();
-        void stilldown();
+        int  get_state();
         void set_press(ControlFn pressFn);
         void set_release(ControlFn releaseFn);
         void set_stilldown(ControlFn stilldownFn);
@@ -117,7 +138,7 @@ class TouchControl {
         void update();
     private:
         String _name;
-        bool   _pressed;
+        int    _pressed = 0;
         int    _val;
         int    _pin;
         int    _threshold;
@@ -251,10 +272,18 @@ void setup() {
     #ifdef LIGHTS
         lights = LIGHTS;
     #else
+        /*
         lights[0] = Light("front", &leds[0], 0, 25); // FRONT
-        lights[1] = Light("left", &leds[0], 25, 25, 25); // LEFT
+        lights[1] = Light("left", &leds[0], 25, 25, 1); // LEFT
         lights[2] = Light("right", &leds[0], 50, 25); // RIGHT
         lights[3] = Light("rear", &leds[0], 75, 25); // REAR
+        */
+        /* Test setup */
+        lights[0] = Light("front", &leds[0], 6, 8);
+        lights[1] = Light("left", &leds[0], 2, 4);
+        lights[2] = Light("right", &leds[0], 14, 4);
+        lights[3] = Light("rear", &leds[0], 0, 2);
+
     #endif
 
     for (Light light : lights) {
@@ -264,10 +293,11 @@ void setup() {
     Serial.println("Light Mapping Initialized");
 
     #ifdef TOUCH
-        controls[0] = TouchControl("left", T0, 20, [](int val){
-            Serial.print("LAMBDA!");
-            Serial.println(val);
-        });
+        controls[0] = TouchControl("left", T0, 20,
+            [](int val){ lights[0].turn_on(); },
+            [](int val){ },
+            [](int val){ lights[0].turn_off(); }
+            );
     #endif
 
     #ifndef NO_NETWORK
@@ -333,7 +363,7 @@ void loop() {
         #endif
     #endif
     #ifdef TOUCH
-        for (TouchControl control : controls) control.update();
+        for (int i=0; i<NUM_CONTROLS; i++) controls[i].update();
     #endif
     for (Light light : lights) light.update();
     FastLED.show();
@@ -536,23 +566,23 @@ TouchControl::TouchControl(String name, int pin, int threshold) {
     _name = name;
     _pin = pin;
     _threshold = threshold;
-    _pressed = false;
+    _pressed = 0;
     _val = 0;
-    _pressFn = [](int val){ Serial.println("Default pressFn"); };
-    _releaseFn = [](int val){ Serial.println("Default releaseFn"); };
-    _stilldownFn = [](int val){ Serial.println("Default stilldownFn"); };
+    _pressFn = default_pressFn;
+    _releaseFn = default_releaseFn;
+    _stilldownFn = default_stilldownFn;
 }
 
 void TouchControl::update() {
     int val = touchRead(_pin);
     if (!_pressed && val <= _threshold) {
-        press();
-    }
-    if (_pressed && val > _threshold) {
-        release();
-    }
-    if (_pressed && val <= _threshold) {
-        stilldown();
+        _pressed = 1;
+        _pressFn(val);
+    } else if (_pressed && val <= _threshold) {
+        _stilldownFn(val);
+    } else if (_pressed && val > _threshold) {
+        _pressed = 0;
+        _releaseFn(val);
     }
 }
 
@@ -561,27 +591,7 @@ int TouchControl::get_state() {
 }
 
 bool TouchControl::is_pressed() {
-    return _pressed;
-}
-
-void TouchControl::press() {
-    Serial.println("Touch Press");
-    _pressed = true;
-    _pressFn(_val);
-}
-
-void TouchControl::release() {
-    Serial.println("Touch Released");
-    _pressed = false;
-    _releaseFn(_val);
-}
-
-void TouchControl::stilldown() {
-    int val = touchRead(_pin);
-    _val = val;
-    Serial.print("Touch Down: ");
-    Serial.println(_val);
-    _stilldownFn(_val);
+    return _pressed!=0;
 }
 
 void TouchControl::set_press(ControlFn pressFn) {
@@ -606,7 +616,6 @@ Light::Light() {
     _name = "light";
     _prog = &Light::_prog_solid;
     _count = 0;
-    _params[NUM_PARAMS] = {};
 }
 
 Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
