@@ -151,7 +151,7 @@ class Light {
     public:
         Light(String name, CRGB* leds, int offset, int num_leds, int inverse=0);
         Light();
-
+        Light(String name, CRGB** leds);
         const char* get_name();
         void turn_on();
         void turn_off();
@@ -282,7 +282,8 @@ void setup() {
         lights[0] = Light("front", &leds[0], 6, 8);
         lights[1] = Light("left", &leds[0], 2, 4);
         lights[2] = Light("right", &leds[0], 14, 4);
-        lights[3] = Light("rear", &leds[0], 0, 2);
+        CRGB* rearLeds[4] = { &leds[0], &leds[1], &leds[18], &leds[19] };
+        lights[3] = Light("rear", rearLeds);
 
     #endif
 
@@ -294,9 +295,12 @@ void setup() {
 
     #ifdef TOUCH
         controls[0] = TouchControl("left", T0, 20,
-            [](int val){ lights[0].turn_on(); },
+            [](int val){
+                Serial.println("Toggle");
+                lights[0].toggle();
+            },
             [](int val){ },
-            [](int val){ lights[0].turn_off(); }
+            [](int val){ }
             );
     #endif
 
@@ -635,6 +639,20 @@ Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
     _count = 0;
 }
 
+Light::Light(String name, CRGB** leds) {
+    _color = CRGB::White;
+    _name = name;
+    _offset = 0;
+    _onoff = 0;
+    _num_leds = sizeof(leds);
+    _leds = new CRGB*[_num_leds];
+    for (int i=0; i<sizeof(leds); i++) {
+        _leds[i] = leds[i];
+    }
+    _prog = &Light::_prog_solid;
+    _count = 0;
+}
+
 #ifndef NO_NETWORK
 
     void Light::subscribe() {
@@ -678,8 +696,8 @@ void Light::turn_on() {
 
 void Light::turn_off() {
     if(_onoff) {
-         _prog = &Light::_prog_fadeout;
-         update();
+        _prog = &Light::_prog_fadeout;
+        update();
     }
 }
 
@@ -696,12 +714,13 @@ void Light::blink() {
 }
 
 void Light::toggle() {
-    if (_onoff == 1) {
+    Serial.println(_onoff);
+    if (_onoff) {
+        Serial.println("OFF");
         turn_off();
-        _onoff = 0;
     } else {
+        Serial.println("ON");
         turn_on();
-        _onoff = 1;
     }
 }
 
@@ -804,7 +823,7 @@ int Light::_prog_fade(int x) {
 int Light::_prog_fadein(int x) {
     bool still_fading = false;
     for(int i=0; i<_num_leds; i++) {
-        *_leds[i] = fadeTowardColor(*_leds[i], _color, 1);
+        *_leds[i] = fadeTowardColor(*_leds[i], _color, 2);
         if (*_leds[i] != _color) still_fading = true;
     }
     if (!still_fading) _prog = &Light::_prog_solid;
@@ -814,7 +833,7 @@ int Light::_prog_fadein(int x) {
 int Light::_prog_fadeout(int x) {
     bool still_fading = false;
     for(int i=0; i<_num_leds; i++) {
-        _leds[i]->fadeToBlackBy(1);
+        _leds[i]->fadeToBlackBy(2);
         if (*_leds[i]) still_fading = true;
     }
     if (!still_fading) _onoff = false;
