@@ -34,6 +34,9 @@
 #endif
 #ifdef TOUCH
     #define TOUCH_PIN T0
+    #ifndef TOUCH_THRESHOLD
+        #define TOUCH_THRESHOLD 50
+    #endif
     int touch_value = 100;
 #endif
 
@@ -68,6 +71,60 @@
 void reconnect();
 void blink();
 void blink_rainbow();
+void blackout();
+uint8_t nblendU8TowardU8(uint8_t cur, const uint8_t target, uint8_t x);
+typedef void(*ControlFn)(int);
+
+ControlFn default_pressFn = [](int val){ Serial.println('default pressFn'); };
+ControlFn default_releaseFn = [](int val){ Serial.println('default releaseFn'); };
+ControlFn default_stilldownFn = [](int val){ Serial.println('default stilldownFn'); };
+
+class TouchControl {
+    public:
+        TouchControl()
+        {
+            _pressFn = default_pressFn;
+            _releaseFn = default_releaseFn;
+            _stilldownFn = default_stilldownFn;
+            _pin = TOUCH_PIN;
+            _threshold = TOUCH_THRESHOLD;
+            _name = "button";
+        };
+        TouchControl(
+            String name,
+            int pin,
+            int threshold,
+            ControlFn pressFn
+            ) :
+            _pressFn { pressFn },
+            _releaseFn { default_releaseFn },
+            _stilldownFn { default_pressFn },
+            _pin { pin },
+            _name { name },
+            _threshold { threshold }
+            {
+
+            };
+        TouchControl(String name, int pin, int threshold);
+        int get_state();
+        void press();
+        void release();
+        void stilldown();
+        void set_press(ControlFn pressFn);
+        void set_release(ControlFn releaseFn);
+        void set_stilldown(ControlFn stilldownFn);
+        bool is_pressed();
+        void update();
+    private:
+        String _name;
+        bool   _pressed;
+        int    _val;
+        int    _pin;
+        int    _threshold;
+        ControlFn _pressFn;
+        ControlFn _releaseFn;
+        ControlFn _stilldownFn;
+};
 
 class Light {
     public:
@@ -140,7 +197,8 @@ class Light {
 
 CRGB leds[NUM_LEDS];
 
-Light lights[NUM_LIGHTS];
+Light           lights[NUM_LIGHTS];
+TouchControl    controls[NUM_CONTROLS];
 
 #ifndef NO_NETWORK
     #ifdef ARTNET
@@ -193,10 +251,10 @@ void setup() {
     #ifdef LIGHTS
         lights = LIGHTS;
     #else
-        lights[0] = Light("front", &leds[0], 0, 25);
-        lights[1] = Light("left", &leds[0], 25, 25, 25);
-        lights[2] = Light("right", &leds[0], 50, 25);
-        lights[3] = Light("rear", &leds[0], 75, 25);
+        lights[0] = Light("front", &leds[0], 0, 25); // FRONT
+        lights[1] = Light("left", &leds[0], 25, 25, 25); // LEFT
+        lights[2] = Light("right", &leds[0], 50, 25); // RIGHT
+        lights[3] = Light("rear", &leds[0], 75, 25); // REAR
     #endif
 
     for (Light light : lights) {
@@ -204,6 +262,13 @@ void setup() {
     }
 
     Serial.println("Light Mapping Initialized");
+
+    #ifdef TOUCH
+        controls[0] = TouchControl("left", T0, 20, [](int val){
+            Serial.print("LAMBDA!");
+            Serial.println(val);
+        });
+    #endif
 
     #ifndef NO_NETWORK
         #ifdef USE_ETHERNET
@@ -267,9 +332,10 @@ void loop() {
             artnet.read();
         #endif
     #endif
-    for(int i=0; i<NUM_LIGHTS; i++) {
-        lights[i].update();
-    }
+    #ifdef TOUCH
+        for (TouchControl control : controls) control.update();
+    #endif
+    for (Light light : lights) light.update();
     FastLED.show();
     count++;
     delay(1000/speed);
@@ -464,6 +530,71 @@ uint8_t nblendU8TowardU8(uint8_t cur, const uint8_t target, uint8_t x) {
     }
 #endif
 
+// TouchControl member functions
+
+TouchControl::TouchControl(String name, int pin, int threshold) {
+    _name = name;
+    _pin = pin;
+    _threshold = threshold;
+    _pressed = false;
+    _val = 0;
+    _pressFn = [](int val){ Serial.println("Default pressFn"); };
+    _releaseFn = [](int val){ Serial.println("Default releaseFn"); };
+    _stilldownFn = [](int val){ Serial.println("Default stilldownFn"); };
+}
+
+void TouchControl::update() {
+    int val = touchRead(_pin);
+    if (!_pressed && val <= _threshold) {
+        press();
+    }
+    if (_pressed && val > _threshold) {
+        release();
+    }
+    if (_pressed && val <= _threshold) {
+        stilldown();
+    }
+}
+
+int TouchControl::get_state() {
+    return _val;
+}
+
+bool TouchControl::is_pressed() {
+    return _pressed;
+}
+
+void TouchControl::press() {
+    Serial.println("Touch Press");
+    _pressed = true;
+    _pressFn(_val);
+}
+
+void TouchControl::release() {
+    Serial.println("Touch Released");
+    _pressed = false;
+    _releaseFn(_val);
+}
+
+void TouchControl::stilldown() {
+    int val = touchRead(_pin);
+    _val = val;
+    Serial.print("Touch Down: ");
+    Serial.println(_val);
+    _stilldownFn(_val);
+}
+
+void TouchControl::set_press(ControlFn pressFn) {
+    _pressFn = pressFn;
+}
+
+void TouchControl::set_release(ControlFn releaseFn) {
+    _releaseFn = releaseFn;
+}
+
+void TouchControl::set_stilldown(ControlFn stilldownFn) {
+    _stilldownFn = stilldownFn;
+}
 
 // Light member functions
 
@@ -484,8 +615,8 @@ Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
     _num_leds = num_leds;
     _speed = 1;
     _leds = new CRGB*[num_leds];
-    Serial.print("Mapping Light ");
-    Serial.println(name);
+//    Serial.print("Mapping Light ");
+//    Serial.println(name);
     for (int i=0; i<num_leds; i++) {
        _leds[i] = inverse? &leds[offset+num_leds-i-1] : &leds[offset+i];
     }
@@ -505,15 +636,15 @@ Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
             Serial.print("Failed to subscribe to feed: ");
             Serial.println(feed);
         } else {
-            Serial.print("Subscribed to feed: ");
-            Serial.println(feed);
+//            Serial.print("Subscribed to feed: ");
+//            Serial.println(feed);
         }
     }
 
     void Light::initialize() {
         if (mqtt_client.connected()) {
-            Serial.print("Subscribing to feeds for light:");
-            Serial.println(_name);
+//            Serial.print("Subscribing to feeds for light:");
+//            Serial.println(_name);
             subscribe();
             // add_to_homebridge();
         } else {
@@ -579,14 +710,14 @@ void Light::set_hue(int val) {
 
 void Light::set_brightness(int val) {
     CHSV hsv_color = get_hsv();
-    hsv_color.v = val;
+    hsv_color.v = min(val, 100);
     set_hsv(hsv_color);
     update();
 }
 
 void Light::set_saturation(int val) {
     CHSV hsv_color = get_hsv();
-    hsv_color.s = val;
+    hsv_color.s = min(val, 100);
     set_hsv(hsv_color);
     update();
 }
@@ -610,8 +741,6 @@ CRGB Light::get_rgb() {
 }
 
 void Light::set_program(const char* program) {
-    Serial.print("Setting program to ");
-    Serial.println(program);
     if (strcmp(program, "solid")==0) _prog = &Light::_prog_solid;
     if (strcmp(program, "chase")==0) {
         _prog = &Light::_prog_chase;
