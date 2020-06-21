@@ -270,7 +270,7 @@ void setup() {
     Serial.println("LEDs initialized");
 
     #ifdef LIGHTS
-        lights = LIGHTS;
+        lights = LIGHTS; // this doesn't work
     #else
         /*
         lights[0] = Light("front", &leds[0], 0, 25); // FRONT
@@ -285,6 +285,9 @@ void setup() {
         CRGB* rearLeds[4] = { &leds[0], &leds[1], &leds[18], &leds[19] };
         lights[3] = Light("rear", rearLeds);
 
+        lights[1].set_program("chase");
+        lights[2].set_program("chase");
+        lights[3].set_rgb(CRGB::Red);
     #endif
 
     for (Light light : lights) {
@@ -294,14 +297,34 @@ void setup() {
     Serial.println("Light Mapping Initialized");
 
     #ifdef TOUCH
-        controls[0] = TouchControl("left", T0, 20,
-            [](int val){
-                Serial.println("Toggle");
-                lights[0].toggle();
+        controls[0] = TouchControl("left", T0, 18,
+            [](int val) {
+                Serial.println("Left Toggle");
+                lights[1].toggle();
             },
-            [](int val){ },
-            [](int val){ }
-            );
+            [](int val) {
+                Serial.print("Left Hold ");
+                Serial.println(val);
+            },
+            [](int val) {
+                Serial.print("Left Release ");
+                Serial.println(val);
+            }
+        );
+        controls[1] = TouchControl("right", T1, 18,
+            [](int val) {
+                Serial.println("Right Toggle");
+                lights[2].toggle();
+            },
+            [](int val) {
+                Serial.print("Right Hold ");
+                Serial.println(val);
+            },
+            [](int val) {
+                Serial.print("Right Release ");
+                Serial.println(val);
+            }
+        );
     #endif
 
     #ifndef NO_NETWORK
@@ -579,14 +602,21 @@ TouchControl::TouchControl(String name, int pin, int threshold) {
 
 void TouchControl::update() {
     int val = touchRead(_pin);
-    if (!_pressed && val <= _threshold) {
-        _pressed = 1;
-        _pressFn(val);
-    } else if (_pressed && val <= _threshold) {
-        _stilldownFn(val);
-    } else if (_pressed && val > _threshold) {
+    Serial.print("pin ");
+    Serial.print(_pin);
+    Serial.print(": ");
+    Serial.println(val);
+    if (val <= _threshold) {
+        _pressed++;
+        if (_pressed == 10) {
+            _pressFn(val);
+        }
+        if (_pressed > 20) {
+            _stilldownFn(val);
+        }
+    } else {
+        if (_pressed > 5) _releaseFn(val);
         _pressed = 0;
-        _releaseFn(val);
     }
 }
 
