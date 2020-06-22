@@ -1,7 +1,7 @@
+#include "Arduino.h"
+#include "PubSubClient.h"
 #include "light.h"
-
-#include <SPI>
-#include <FastLED>
+#include "config.h"
 
 Light::Light() {
     _color = CRGB::White;
@@ -42,36 +42,24 @@ Light::Light(String name, CRGB** leds) {
     _count = 0;
 }
 
-#ifndef NO_NETWORK
-
-    void Light::subscribe() {
-        char device[128];
-        sprintf(device, "/%s/%s", DEVICE_NAME, _name.c_str());
-        String feed = device;
-        if(!mqtt_client.subscribe(feed.c_str())) {
-            Serial.print("Failed to subscribe to feed: ");
-            Serial.println(feed);
-        } else {
-            Serial.print("Subscribed to feed: ");
-            Serial.println(feed);
-        }
+void Light::subscribe(PubSubClient mqtt_client) {
+    char device[128];
+    sprintf(device, "/%s/%s", DEVICE_NAME, _name.c_str());
+    String feed = device;
+    if (!mqtt_client.connected()) {
+        Serial.println("Not Connected");
+    } else if(!mqtt_client.subscribe(feed.c_str())) {
+        Serial.print("Failed to subscribe to feed: ");
+        Serial.println(feed);
+    } else {
+        Serial.print("Subscribed to feed: ");
+        Serial.println(feed);
     }
-
-    void Light::initialize() {
-        if (mqtt_client.connected()) {
-            subscribe();
-        } else {
-            Serial.println("Not Connected");
-        }
-    }
-
-#endif
+}
 
 void Light::update() {
-    if (_onoff == 1 && count%_speed == 0) {
-        (this->*_prog)(_params[0]);
-        _count++;
-    }
+    (this->*_prog)(_params[0]);
+    _count++;
 }
 
 void Light::turn_on() {

@@ -7,10 +7,10 @@
 #include "touchcontrol.h"
 
 #ifndef NO_NETWORK
-    #include <Dns>
-    #include <Dhcp>
-    #include <PubSubClient>
-    #include <ArduinoJson>
+    #include <Dns.h>
+    #include <Dhcp.h>
+    #include <PubSubClient.h>
+    #include <ArduinoJson.h>
 #endif
 #ifdef ARTNET
     #include <Artnet.h>
@@ -27,7 +27,7 @@
     #define USE_WIFI
 #endif
 #ifdef USE_WIFI
-    #include <WiFi>
+    #include <WiFi.h>
 #endif
 #ifdef USE_ETHERNET
     #include <Ethernet.h>
@@ -363,7 +363,7 @@ void loop() {
                 sprintf(feed, "/%s/all", DEVICE_NAME);
                 mqtt_client.subscribe(feed);
                 for(int i=0; i<NUM_LIGHTS; i++) {
-                    lights[i].initialize();
+                    lights[i].subscribe(mqtt_client);
                 }
             } else {
                 Serial.print("failed, rc=");

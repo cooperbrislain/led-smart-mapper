@@ -1,19 +1,20 @@
-//
-// Created by Cooper Brislain on 6/21/20.
-//
-
 #ifndef MQTT_LEDSTRIP_TOUCHCONTROL_H
 #define MQTT_LEDSTRIP_TOUCHCONTROL_H
 
-#endif //MQTT_LEDSTRIP_TOUCHCONTROL_H
+#include "Arduino.h"
+#include "config.h"
+
+#define TOUCH_PIN T0
+
+typedef void(*ControlFn)(int);
 
 class TouchControl {
     public:
         TouchControl()
         {
-            _pressFn = default_pressFn;
-            _releaseFn = default_releaseFn;
-            _stilldownFn = default_stilldownFn;
+            _pressFn = [](int val){ };
+            _releaseFn = [](int val){ };
+            _stilldownFn = [](int val){ };
             _pin = TOUCH_PIN;
             _threshold = TOUCH_THRESHOLD;
             _name = "button";
@@ -25,8 +26,8 @@ class TouchControl {
             ControlFn pressFn
         ) :
             _pressFn { pressFn },
-            _releaseFn { default_releaseFn },
-            _stilldownFn { default_stilldownFn },
+            _releaseFn { [](int val){ } },
+            _stilldownFn { [](int val){ } },
             _pin { pin },
             _name { name },
             _threshold { threshold }
@@ -64,4 +65,4 @@ class TouchControl {
         ControlFn _stilldownFn;
 };
 
-typedef void(*ControlFn)(int);
+#endif //MQTT_LEDSTRIP_TOUCHCONTROL_H

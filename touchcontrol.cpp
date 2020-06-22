@@ -1,8 +1,6 @@
-//
-// Created by Cooper Brislain on 6/21/20.
-//
-
+#include "Arduino.h"
 #include "touchcontrol.h"
+#include "config.h"
 
 TouchControl::TouchControl(String name, int pin, int threshold) {
     _name = name;
@@ -10,9 +8,9 @@ TouchControl::TouchControl(String name, int pin, int threshold) {
     _threshold = threshold;
     _pressed = 0;
     _val = 0;
-    _pressFn = default_pressFn;
-    _releaseFn = default_releaseFn;
-    _stilldownFn = default_stilldownFn;
+    _pressFn = [](int val) { };
+    _releaseFn = [](int val) { };
+    _stilldownFn = [](int val) { };
 }
 
 void TouchControl::update() {
@@ -52,19 +50,4 @@ void TouchControl::set_stilldown(ControlFn stilldownFn) {
     _stilldownFn = stilldownFn;
 }
 
-// Default Control Functions
 
-ControlFn default_pressFn = [](int val){
-    Serial.print("default pressFn");
-    Serial.println(val);
-};
-
-ControlFn default_releaseFn = [](int val){
-    Serial.print("default releaseFn");
-    Serial.println(val);
-};
-
-ControlFn default_stilldownFn = [](int val){
-    Serial.print("default stilldownFn");
-    Serial.println(val);
-};
