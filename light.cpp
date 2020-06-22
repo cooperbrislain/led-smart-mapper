@@ -42,13 +42,13 @@ Light::Light(String name, CRGB** leds) {
     _count = 0;
 }
 
-void Light::subscribe(PubSubClient mqtt_client) {
+void Light::subscribe(PubSubClient *mqtt_client) {
     char device[128];
     sprintf(device, "/%s/%s", DEVICE_NAME, _name.c_str());
     String feed = device;
-    if (!mqtt_client.connected()) {
+    if (!mqtt_client->connected()) {
         Serial.println("Not Connected");
-    } else if(!mqtt_client.subscribe(feed.c_str())) {
+    } else if(!mqtt_client->subscribe(feed.c_str())) {
         Serial.print("Failed to subscribe to feed: ");
         Serial.println(feed);
     } else {

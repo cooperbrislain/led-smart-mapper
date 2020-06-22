@@ -363,7 +363,7 @@ void loop() {
                 sprintf(feed, "/%s/all", DEVICE_NAME);
                 mqtt_client.subscribe(feed);
                 for(int i=0; i<NUM_LIGHTS; i++) {
-                    lights[i].subscribe(mqtt_client);
+                    lights[i].subscribe(&mqtt_client);
                 }
             } else {
                 Serial.print("failed, rc=");

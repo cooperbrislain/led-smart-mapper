@@ -30,7 +30,7 @@ class Light {
         CRGB get_rgb();
         CHSV get_hsv();
         void update();
-        void subscribe(PubSubClient mqtt_client);
+        void subscribe(PubSubClient *mqtt_client);
     private:
         CRGB** _leds;
         CRGB _color;
