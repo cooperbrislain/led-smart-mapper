@@ -3,11 +3,14 @@
 #include <SPI.h>
 #include <FastLED.h>
 
+#include "light.h"
+#include "touchcontrol.h"
+
 #ifndef NO_NETWORK
-    #include <Dns.h>
-    #include <Dhcp.h>
-    #include <PubSubClient.h>
-    #include <ArduinoJson.h>
+    #include <Dns>
+    #include <Dhcp>
+    #include <PubSubClient>
+    #include <ArduinoJson>
 #endif
 #ifdef ARTNET
     #include <Artnet.h>
@@ -24,7 +27,7 @@
     #define USE_WIFI
 #endif
 #ifdef USE_WIFI
-    #include <WiFi.h>
+    #include <WiFi>
 #endif
 #ifdef USE_ETHERNET
     #include <Ethernet.h>
@@ -72,139 +75,6 @@ void reconnect();
 void blink();
 void blink_rainbow();
 void blackout();
-uint8_t nblendU8TowardU8(uint8_t cur, const uint8_t target, uint8_t x);
-typedef void(*ControlFn)(int);
-
-ControlFn default_pressFn = [](int val){
-    Serial.print("default pressFn");
-    Serial.println(val);
-};
-
-ControlFn default_releaseFn = [](int val){
-    Serial.print("default releaseFn");
-    Serial.println(val);
-};
-
-ControlFn default_stilldownFn = [](int val){
-    Serial.print("default stilldownFn");
-    Serial.println(val);
-};
-
-class TouchControl {
-    public:
-        TouchControl()
-        {
-            _pressFn = default_pressFn;
-            _releaseFn = default_releaseFn;
-            _stilldownFn = default_stilldownFn;
-            _pin = TOUCH_PIN;
-            _threshold = TOUCH_THRESHOLD;
-            _name = "button";
-        };
-        TouchControl(
-            String name,
-            int pin,
-            int threshold,
-            ControlFn pressFn
-        ) :
-            _pressFn { pressFn },
-            _releaseFn { default_releaseFn },
-            _stilldownFn { default_stilldownFn },
-            _pin { pin },
-            _name { name },
-            _threshold { threshold }
-            { };
-        TouchControl(
-            String name,
-            int pin,
-            int threshold,
-            ControlFn pressFn,
-            ControlFn stilldownFn,
-            ControlFn releaseFn
-        ) :
-            _name { name },
-            _pin { pin },
-            _threshold { threshold },
-            _pressFn { pressFn },
-            _releaseFn { releaseFn },
-            _stilldownFn { stilldownFn }
-        { };
-        TouchControl(String name, int pin, int threshold);
-        int  get_state();
-        void set_press(ControlFn pressFn);
-        void set_release(ControlFn releaseFn);
-        void set_stilldown(ControlFn stilldownFn);
-        bool is_pressed();
-        void update();
-    private:
-        String _name;
-        int    _pressed = 0;
-        int    _val;
-        int    _pin;
-        int    _threshold;
-        ControlFn _pressFn;
-        ControlFn _releaseFn;
-        ControlFn _stilldownFn;
-};
-
-class Light {
-    public:
-        Light(String name, CRGB* leds, int offset, int num_leds, int inverse=0);
-        Light();
-        Light(String name, CRGB** leds);
-        const char* get_name();
-        void turn_on();
-        void turn_off();
-        void blink();
-        void toggle();
-        void set_speed(int val);
-        void set_hue(int val);
-        void set_brightness(int val);
-        void set_saturation(int val);
-        void set_rgb(CRGB);
-        void set_hsv(int hue, int sat, int val);
-        void set_hsv(CHSV);
-        void set_program(const char* program);
-        void set_param(int p, int v);
-        void set_params(int* params);
-        CRGB get_rgb();
-        CHSV get_hsv();
-        #ifndef NO_NETWORK
-            void initialize();
-        #endif
-        void update();
-
-    private:
-        CRGB** _leds;
-        CRGB _color;
-        int _params [NUM_PARAMS];
-        int _speed;
-        int _num_leds;
-        int _offset;
-        int _last_brightness;
-        bool _onoff;
-        String _name;
-        unsigned int _count;
-        unsigned int _index;
-        int _prog_solid(int x);
-        int _prog_chase(int x);
-        int _prog_blink(int x);
-        int _prog_fade(int x);
-        int _prog_warm(int x);
-        int _prog_xmas(int x);
-        int _prog_lfo(int x);
-        int _prog_fadeout(int x);
-        int _prog_fadein(int x);
-        int _prog_longfade(int x);
-        int (Light::*_prog)(int x);
-        #ifndef NO_NETWORK
-            void subscribe();
-            // void add_to_homebridge();
-            #ifdef ARTNET 
-                int _prog_artnet(int x); 
-            #endif
-        #endif
-};
 
 #ifdef USE_ETHERNET
     byte mac[] = ETH_MAC;
@@ -217,9 +87,10 @@ class Light {
 #endif
 
 CRGB leds[NUM_LEDS];
-
 Light           lights[NUM_LIGHTS];
 TouchControl    controls[NUM_CONTROLS];
+int speed = GLOBAL_SPEED;
+int count = 0;
 
 #ifndef NO_NETWORK
     #ifdef ARTNET
@@ -249,9 +120,7 @@ TouchControl    controls[NUM_CONTROLS];
     PubSubClient mqtt_client(net_client);
 #endif
 
-int speed = GLOBAL_SPEED;
-
-int count = 0;
+// SETUP
 
 void setup() {
     Serial.begin(115200);
@@ -272,21 +141,22 @@ void setup() {
     #ifdef LIGHTS
         lights = LIGHTS; // this doesn't work
     #else
-        /*
         lights[0] = Light("front", &leds[0], 0, 25); // FRONT
         lights[1] = Light("left", &leds[0], 25, 25, 1); // LEFT
         lights[2] = Light("right", &leds[0], 50, 25); // RIGHT
         lights[3] = Light("rear", &leds[0], 75, 25); // REAR
-        */
         /* Test setup */
+        /*
         lights[0] = Light("front", &leds[0], 6, 8);
         lights[1] = Light("left", &leds[0], 2, 4);
         lights[2] = Light("right", &leds[0], 14, 4);
         CRGB* rearLeds[4] = { &leds[0], &leds[1], &leds[18], &leds[19] };
         lights[3] = Light("rear", rearLeds);
-
+        */
         lights[1].set_program("chase");
+        lights[1].set_rgb(CRGB::Orange);
         lights[2].set_program("chase");
+        lights[2].set_rgb(CRGB::Orange);
         lights[3].set_rgb(CRGB::Red);
     #endif
 
@@ -378,6 +248,8 @@ void setup() {
     delay(150);
 }
 
+// MAIN LOOP
+
 void loop() {
     #ifndef NO_NETWORK
         if (!mqtt_client.connected()) {
@@ -396,37 +268,6 @@ void loop() {
     FastLED.show();
     count++;
     delay(1000/speed);
-}
-
-void blink() {
-    for (int i=0; i<NUM_LEDS; i++) {
-        leds[i] = CRGB::White;
-    }
-    FastLED.show();
-    delay(25);
-    for (int i=0; i<NUM_LEDS; i++) {
-        leds[i] = CRGB::Black;
-    }
-    FastLED.show();
-}
-
-void blink_rainbow() {
-    CHSV color;
-    for (int t=0; t<100; t++) {
-        color = CHSV((t*5)%255, 255, 100);
-        for (int i=0; i<NUM_LEDS; i++) {
-            leds[i] = color;
-        }
-        FastLED.show();
-        delay(10);
-    }
-}
-
-void blackout() {
-    for (int i=0; i<NUM_LEDS; i++) {
-        leds[i] = CRGB::Black;
-    }
-    FastLED.show();
 }
 
 #ifndef NO_NETWORK
@@ -536,415 +377,35 @@ void blackout() {
 
 #endif
 
-CRGB fadeTowardColor(CRGB cur, CRGB target, uint8_t x) {
-    CRGB newc;
-    newc.red = nblendU8TowardU8(cur.red, target.red, x);
-    newc.green = nblendU8TowardU8(cur.green, target.green, x);
-    newc.blue = nblendU8TowardU8(cur.blue, target.blue, x);
-    return newc;
-}
+// LED FUNCTIONS
 
-uint8_t nblendU8TowardU8(uint8_t cur, const uint8_t target, uint8_t x) {
-    uint8_t newc;
-    if (cur == target) return newc = cur;
-    if (cur < target) {
-        uint8_t delta = target - cur;
-        delta = scale8_video(delta, x);
-        newc = cur + delta;
-    } else {
-        uint8_t delta = cur - target;
-        delta = scale8_video(delta, x);
-        newc = cur - delta;
+void blink() {
+    for (int i=0; i<NUM_LEDS; i++) {
+        leds[i] = CRGB::White;
     }
-    return newc;
-}
-
-#ifdef ARTNET
-    void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* data, IPAddress remoteIP) {
-        sendFrame = 1;
-
-        if ((universe - startUniverse) < maxUniverses)
-        universesReceived[universe - startUniverse] = 1;
-
-        for (int i = 0 ; i < maxUniverses ; i++) {
-            if (universesReceived[i] == 0) {
-                sendFrame = 0;
-                break;
-            }
-        }
-        
-        for (int i = 0; i < length / 3; i++) {
-            int led = i + (universe - startUniverse) * (previousDataLength / 3);
-            if (led < NUM_LEDS) {
-                artnet_leds[led] = CRGB(data[i*3], data[i*3+1], data[i*3+2]);
-            }
-        }
-        previousDataLength = length;
-
-        if (sendFrame) {
-            memset(universesReceived, 0, maxUniverses);
-        }
-    }
-#endif
-
-// TouchControl member functions
-
-TouchControl::TouchControl(String name, int pin, int threshold) {
-    _name = name;
-    _pin = pin;
-    _threshold = threshold;
-    _pressed = 0;
-    _val = 0;
-    _pressFn = default_pressFn;
-    _releaseFn = default_releaseFn;
-    _stilldownFn = default_stilldownFn;
-}
-
-void TouchControl::update() {
-    int val = touchRead(_pin);
-    Serial.print("pin ");
-    Serial.print(_pin);
-    Serial.print(": ");
-    Serial.println(val);
-    if (val <= _threshold) {
-        _pressed++;
-        if (_pressed == 10) {
-            _pressFn(val);
-        }
-        if (_pressed > 20) {
-            _stilldownFn(val);
-        }
-    } else {
-        if (_pressed > 5) _releaseFn(val);
-        _pressed = 0;
-    }
-}
-
-int TouchControl::get_state() {
-    return _val;
-}
-
-bool TouchControl::is_pressed() {
-    return _pressed!=0;
-}
-
-void TouchControl::set_press(ControlFn pressFn) {
-    _pressFn = pressFn;
-}
-
-void TouchControl::set_release(ControlFn releaseFn) {
-    _releaseFn = releaseFn;
-}
-
-void TouchControl::set_stilldown(ControlFn stilldownFn) {
-    _stilldownFn = stilldownFn;
-}
-
-// Light member functions
-
-Light::Light() {
-    _color = CRGB::White;
-    _onoff = 0;
-    _num_leds = 0;
-    _speed = 1;
-    _name = "light";
-    _prog = &Light::_prog_solid;
-    _count = 0;
-}
-
-Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
-    _color = CRGB::White;
-    _onoff = 0;
-    _num_leds = num_leds;
-    _speed = 1;
-    _leds = new CRGB*[num_leds];
-//    Serial.print("Mapping Light ");
-//    Serial.println(name);
-    for (int i=0; i<num_leds; i++) {
-       _leds[i] = inverse? &leds[offset+num_leds-i-1] : &leds[offset+i];
-    }
-    _offset = offset;
-    _name = name;
-    _prog = &Light::_prog_solid;
-    _count = 0;
-}
-
-Light::Light(String name, CRGB** leds) {
-    _color = CRGB::White;
-    _name = name;
-    _offset = 0;
-    _onoff = 0;
-    _num_leds = sizeof(leds);
-    _leds = new CRGB*[_num_leds];
-    for (int i=0; i<sizeof(leds); i++) {
-        _leds[i] = leds[i];
-    }
-    _prog = &Light::_prog_solid;
-    _count = 0;
-}
-
-#ifndef NO_NETWORK
-
-    void Light::subscribe() {
-        char device[128];
-        sprintf(device, "/%s/%s", DEVICE_NAME, _name.c_str());
-        String feed = device;
-        if(!mqtt_client.subscribe(feed.c_str())) {
-            Serial.print("Failed to subscribe to feed: ");
-            Serial.println(feed);
-        } else {
-//            Serial.print("Subscribed to feed: ");
-//            Serial.println(feed);
-        }
-    }
-
-    void Light::initialize() {
-        if (mqtt_client.connected()) {
-//            Serial.print("Subscribing to feeds for light:");
-//            Serial.println(_name);
-            subscribe();
-            // add_to_homebridge();
-        } else {
-            Serial.println("Not Connected");
-        }
-    }
-
-#endif
-
-void Light::update() {
-    if (_onoff == 1 && count%_speed == 0) {
-        (this->*_prog)(_params[0]);
-        _count++;
-    }
-}
-
-void Light::turn_on() {
-    _prog = &Light::_prog_fadein;
-    _onoff = 1;
-    update();
-}
-
-void Light::turn_off() {
-    if(_onoff) {
-        _prog = &Light::_prog_fadeout;
-        update();
-    }
-}
-
-void Light::blink() {
-    for (int i=0; i<_num_leds; i++) {
-        *(CRGB*)_leds[i] = CRGB::White;
-    }
-    update();
+    FastLED.show();
     delay(25);
-    for (int i=0; i<_num_leds; i++) {
-        *(CRGB*)_leds[i] = CRGB::Black;
+    for (int i=0; i<NUM_LEDS; i++) {
+        leds[i] = CRGB::Black;
     }
-    update();
+    FastLED.show();
 }
 
-void Light::toggle() {
-    Serial.println(_onoff);
-    if (_onoff) {
-        Serial.println("OFF");
-        turn_off();
-    } else {
-        Serial.println("ON");
-        turn_on();
-    }
-}
-
-void Light::set_rgb(CRGB color) {
-    _color = color;
-    update();
-}
-
-void Light::set_hue(int val) {
-    CHSV hsv_color = get_hsv();
-    hsv_color.h = val;
-    set_hsv(hsv_color);
-    update();
-}
-
-void Light::set_brightness(int val) {
-    CHSV hsv_color = get_hsv();
-    hsv_color.v = min(val, 100);
-    set_hsv(hsv_color);
-    update();
-}
-
-void Light::set_saturation(int val) {
-    CHSV hsv_color = get_hsv();
-    hsv_color.s = min(val, 100);
-    set_hsv(hsv_color);
-    update();
-}
-
-void Light::set_hsv(int hue, int sat, int val) {
-    _color = CHSV(hue, sat, val);
-    update();
-}
-
-void Light::set_hsv(CHSV color) {
-    _color = color;
-    update();
-}
-
-CHSV Light::get_hsv() {
-    return rgb2hsv_approximate(_color);
-}
-
-CRGB Light::get_rgb() {
-    return _color;
-}
-
-void Light::set_program(const char* program) {
-    if (strcmp(program, "solid")==0) _prog = &Light::_prog_solid;
-    if (strcmp(program, "chase")==0) {
-        _prog = &Light::_prog_chase;
-        _params[1] = _params[1]? _params[1] : 35;
-    }
-    if (strcmp(program, "fade")==0)  _prog = &Light::_prog_fade;
-    if (strcmp(program, "blink")==0) _prog = &Light::_prog_blink;
-    if (strcmp(program, "warm")==0) {
-        _prog = &Light::_prog_warm;
-        _params[0] = 50;
-    }
-    if (strcmp(program, "lfo")==0) _prog = &Light::_prog_lfo;
-    #ifdef ARTNET
-        if (strcmp(program, "artnet")==0) _prog = &Light::_prog_artnet;
-    #endif
-}
-
-void Light::set_params(int* params) {
-    for (int i=0; i<sizeof(params); i++) {
-        _params[i] = params[i];
-    }
-}
-
-void Light::set_param(int p, int v) {
-    _params[p] = v;
-}
-
-void Light::set_speed(int s) {
-    _speed = s;
-}
-
-const char* Light::get_name() {
-    return _name.c_str();
-}
-
-// programs
-
-int Light::_prog_solid(int x) {
-    for (int i=0; i<_num_leds; i++) {
-        *_leds[i] = _color;
-    }
-    return 0;
-}
-
-int Light::_prog_fade(int x) {
-    for(int i=0; i<_num_leds; i++) {
-        _leds[i]->fadeToBlackBy(x);
-    }
-    return 0;
-}
-
-int Light::_prog_fadein(int x) {
-    bool still_fading = false;
-    for(int i=0; i<_num_leds; i++) {
-        *_leds[i] = fadeTowardColor(*_leds[i], _color, 2);
-        if (*_leds[i] != _color) still_fading = true;
-    }
-    if (!still_fading) _prog = &Light::_prog_solid;
-    return 0;
-}
-
-int Light::_prog_fadeout(int x) {
-    bool still_fading = false;
-    for(int i=0; i<_num_leds; i++) {
-        _leds[i]->fadeToBlackBy(2);
-        if (*_leds[i]) still_fading = true;
-    }
-    if (!still_fading) _onoff = false;
-    return 0;
-}
-
-int Light::_prog_chase(int x) {
-    // params: 1: Chase Speed
-    //         1: Fade Speed
-    _prog_fade(_params[1]);
-    *_leds[_count%_num_leds] = _color;
-    return 0;
-}
-
-int Light::_prog_warm(int x) {
-    if (_count%7 == 0) _prog_fade(1);
-    
-    if (_count%11 == 0) {
-        _index = random(_num_leds);
-        CHSV wc = rgb2hsv_approximate(_color);
-        wc.h = wc.h + random(11)-5;
-        wc.s = random(128)+128;
-        wc.v &=x;
-        _color = wc;
-    }
-    *_leds[_index] += _color;
-    return 0;
-}
-
-int Light::_prog_xmas(int x) {
-    if (_count%7 == 0) _prog_fade(1);
-    
-    if (_count%11 == 0) {
-        _index = random(_num_leds);
-        CHSV wc = rgb2hsv_approximate(_color);
-        wc.h = wc.h + random(11)-5;
-        wc.s = random(128)+128;
-        wc.v &=x;
-        _color = wc;
-    }
-    *_leds[_index] += _color;
-    return 0;
-}
-
-int Light::_prog_lfo(int x) {
-    int wc = _color;
-    wc%=(int)round((sin(_count*3.14/180)+0.5)*255);
-    for(int i=0; i<_num_leds; i++) {
-        *_leds[i] = wc;
-    }
-    return 0;
-}
-
-int Light::_prog_longfade(int x) {
-    bool still_fading = false;
-    if(_count%10 == 0) {
-        for(int i=0; i<_num_leds; i++) {
-            _leds[i]->fadeToBlackBy(1);
-            if (*_leds[i]) still_fading = true;
+void blink_rainbow() {
+    CHSV color;
+    for (int t=0; t<100; t++) {
+        color = CHSV((t*5)%255, 255, 100);
+        for (int i=0; i<NUM_LEDS; i++) {
+            leds[i] = color;
         }
-        if (!still_fading) _onoff = false;
+        FastLED.show();
+        delay(10);
     }
-    return 0;
 }
 
-int Light::_prog_blink(int x) {
-    _prog_fade(25);
-    if (!x) x = 25;
-    if (_count%x == 0) {
-        Serial.println("blink");
-        for(int i=0; i<_num_leds; i++) {
-            *_leds[i] = _color;
-        }
+void blackout() {
+    for (int i=0; i<NUM_LEDS; i++) {
+        leds[i] = CRGB::Black;
     }
-    return 0;
+    FastLED.show();
 }
-
-#ifdef ARTNET
-    int Light::_prog_artnet(int x) {
-        for (int i=0; i<_num_leds; i++) {
-           & _leds[i] = artnet_leds[_offset+i];
-        }
-    }
-#endif
