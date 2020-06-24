@@ -141,10 +141,13 @@ void setup() {
     #ifdef LIGHTS
         lights = LIGHTS; // this doesn't work
     #else
-        lights[0] = Light("front", &leds[0], 0, 25); // FRONT
-        lights[1] = Light("left", &leds[0], 25, 25, 1); // LEFT
-        lights[2] = Light("right", &leds[0], 50, 25); // RIGHT
-        lights[3] = Light("rear", &leds[0], 75, 25); // REAR
+    #ifdef BUMP_LED
+        lights[0] = Light("bump", &leds[0], 0, 1);
+    #endif
+        lights[1] = Light("front", &leds[1], 0, 25); // FRONT
+        lights[2] = Light("left", &leds[1], 25, 25, 25); // LEFT
+        lights[3] = Light("right", &leds[1], 50, 25); // RIGHT
+        lights[4] = Light("rear", &leds[1], 75, 25); // REAR
         /* Test setup */
         /*
         lights[0] = Light("front", &leds[0], 6, 8);
