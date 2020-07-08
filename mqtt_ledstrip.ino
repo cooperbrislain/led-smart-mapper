@@ -1,64 +1,4 @@
-#include "config.h"
-
-#include "defs.h"
-
-#include <SPI.h>
-#include <FastLED.h>
-
-#include "light.h"
-#include "touchcontrol.h"
-
-#ifndef NO_NETWORK
-    #include <Dns.h>
-    #include <Dhcp.h>
-    #include <PubSubClient.h>
-    #include <ArduinoJson.h>
-#endif
-#ifdef ARTNET
-    #include <Artnet.h>
-#endif
-
-#ifdef IS_MEGA
-    #define DATA_PIN 42
-    #define CLOCK_PIN 43
-    #define USE_ETHERNET
-#endif
-#ifdef IS_ESP32
-    #define DATA_PIN 21
-    #define CLOCK_PIN 22
-    #define USE_WIFI
-#endif
-#ifdef USE_WIFI
-    #include <WiFi.h>
-#endif
-#ifdef USE_ETHERNET
-    #include <Ethernet.h>
-#endif
-#ifndef DEVICE_NAME
-    #define DEVICE_NAME "led-bridge"
-#endif
-#ifdef TOUCH
-    #define TOUCH_PIN T0
-    #ifndef TOUCH_THRESHOLD
-        #define TOUCH_THRESHOLD 50
-    #endif
-    int touch_value = 100;
-#endif
-
-#ifndef NUM_LEDS
-    #define NUM_LEDS 25
-#endif
-#ifndef NUM_LIGHTS
-    #define NUM_LIGHTS 1
-#endif
-#ifndef NUM_PARAMS
-    #define NUM_PARAMS 3
-#endif
-#ifndef BRIGHTNESS_SCALE
-    #define BRIGHTNESS_SCALE 50
-#endif
-
-#define halt(s) { Serial.println(F( s )); while(1);  }
+#include "mqtt_ledstrip.h"
 
 #ifdef USE_WIFI
     const char *wifi_ssid = WIFI_SSID;
@@ -67,16 +7,10 @@
 
 #ifndef NO_NETWORK
     void mqtt_callback(char* topic, byte* payload, unsigned int length);
-
     #ifdef ARTNET
         void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* data, IPAddress remoteIP);
     #endif
 #endif
-
-void reconnect();
-void blink();
-void blink_rainbow();
-void blackout();
 
 #ifdef USE_ETHERNET
     byte mac[] = ETH_MAC;
@@ -89,8 +23,8 @@ void blackout();
 #endif
 
 CRGB leds[NUM_LEDS];
-Light           lights[NUM_LIGHTS];
-TouchControl    controls[NUM_CONTROLS];
+Light lights[NUM_LIGHTS];
+TouchControl controls[NUM_CONTROLS];
 int speed = GLOBAL_SPEED;
 int count = 0;
 
@@ -147,21 +81,21 @@ void setup() {
         lights[0] = Light("bump", &leds[0], 0, 1);
     #endif
 //        lights[1] = Light("front", &leds[1], 0, 25); // FRONT
-//        lights[2] = Light("left", &leds[1], 25, 25, 25); // LEFT
+//        lights[2] = Light("left", &leds[1], 25, 25, 1); // LEFT
 //        lights[3] = Light("right", &leds[1], 50, 25); // RIGHT
 //        lights[4] = Light("rear", &leds[1], 75, 25); // REAR
         /* Test setup */
-        lights[1] = Light("front", &leds[1], 12, 13);
-        lights[2] = Light("left", &leds[1], 0, 10);
+        lights[1] = Light("front", &leds[1], 12, 11);
+        lights[2] = Light("left", &leds[1], 0, 10, 1);
         lights[3] = Light("right", &leds[1], 25, 10);
-        CRGB* rearLeds[4] = { &leds[10], &leds[11], &leds[23], &leds[24] };
+        CRGB* rearLeds[4] = { &leds[11], &leds[12], &leds[24], &leds[25] };
         lights[4] = Light("rear", rearLeds);
 
-        lights[2].set_program("chase");
         lights[2].set_rgb(CRGB::Orange);
-        lights[3].set_program("chase");
         lights[3].set_rgb(CRGB::Orange);
         lights[4].set_rgb(CRGB::Red);
+        lights[1].set_param(0,1);
+        lights[4].set_param(0,1);
     #endif
 
     for (Light light : lights) {
@@ -172,23 +106,32 @@ void setup() {
 
     #ifdef TOUCH
         controls[0] = TouchControl("left", T1, TOUCH_THRESHOLD,
-            [](int val) { lights[2].turn_on(); },
-            [](int val) { },
+            [](int val) {
+                lights[2].set_program("chase");
+                lights[2].set_param(0,25);
+                lights[2].set_param(1,50);
+                lights[2].set_on(1); },
+            [](int val) { Serial.println("LEFT"); },
             [](int val) { lights[2].turn_off(); }
         );
         controls[1] = TouchControl("right", T0, TOUCH_THRESHOLD,
-            [](int val) { lights[3].turn_on(); },
-            [](int val) { },
+            [](int val) {
+                lights[3].set_program("chase");
+                lights[3].set_param(0,25);
+                lights[3].set_param(1,50);
+                lights[3].set_on(1);
+                },
+            [](int val) { Serial.println("RIGHT"); },
             [](int val) { lights[3].turn_off(); }
         );
         controls[2] = TouchControl("Green", T4, TOUCH_THRESHOLD,
             [](int val) { lights[1].turn_on(); },
-            [](int val) { },
+            [](int val) { Serial.println("GREEN"); },
             [](int val) { lights[1].turn_off(); }
         );
         controls[3] = TouchControl("Red", T3, TOUCH_THRESHOLD,
             [](int val) { lights[4].turn_on(); },
-            [](int val) { },
+            [](int val) { Serial.println("RED"); },
             [](int val) { lights[4].turn_off(); }
         );
     #endif
@@ -260,7 +203,13 @@ void loop() {
     #ifdef TOUCH
         for (int i=0; i<NUM_CONTROLS; i++) controls[i].update();
     #endif
-    for (int i=0; i<NUM_LIGHTS; i++) lights[i].update();
+    for (int i=0; i<NUM_LIGHTS; i++) {
+        if ((count%(lights[i].get_param(0)||1)) == 0) {
+            Serial.println(lights[i].get_param(0));
+            lights[i].update();
+        }
+
+    }
     FastLED.show();
     count++;
     Serial.println("======================LOOP======================");
@@ -318,14 +267,14 @@ void loop() {
                         const char* program = json["Program"];
                         lights[i].set_program(program);
                     }
-                    if (json.containsKey("Speed")) {
+                    if (json.containsKey("Speed")) { // deprecated, will be removed
                         int val = json["Speed"].as<int>();
                         if (device == "global") {
                             Serial.print("Setting speed to ");
                             Serial.println(val);
                             speed = val;
                         } else {
-                            lights[i].set_speed(val);
+                            lights[i].set_param(0, val);
                         }
                     }
                     if (json.containsKey("Params")) {

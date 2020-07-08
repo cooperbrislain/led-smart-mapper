@@ -9,15 +9,49 @@
 
 class Light {
     public:
-        Light(String name, CRGB* leds, int offset, int num_leds, int inverse=0);
-        Light();
-        Light(String name, CRGB** leds);
+        Light() :
+            _color { CRGB::White },
+            _onoff { 0 },
+            _num_leds { 0 },
+            _name { "light" },
+            _prog { &Light::_prog_solid },
+            _count { 0 }
+        { };
+        Light(String name, CRGB* leds, int offset, int num_leds, int inverse=0) :
+            _name { name },
+            _num_leds { num_leds },
+            _color { CRGB::White },
+            _onoff { 0 },
+            _count { 0 },
+            _speed { 1 },
+            _offset { offset },
+            _prog { &Light::_prog_solid }
+        {
+            _leds = new CRGB*[num_leds];
+            for (int i=0; i<num_leds; i++) {
+                _leds[i] = inverse? &leds[offset+num_leds-i-1] : &leds[offset+i];
+            }
+        };
+        Light(String name, CRGB** leds) :
+            _name { name },
+            _color { CRGB::White },
+            _count { 0 },
+            _offset { 0 },
+            _onoff { 0 },
+            _num_leds { sizeof(leds) },
+            _prog { &Light::_prog_solid }
+        {
+            _leds = new CRGB*[_num_leds];
+            for (int i=0; i<sizeof(leds); i++) {
+                _leds[i] = leds[i];
+            }
+        };
         const char* get_name();
         void turn_on();
         void turn_off();
+        void set_on(int onoff);
         void blink();
         void toggle();
-        void set_speed(int val);
         void set_hue(int val);
         void set_brightness(int val);
         void set_saturation(int val);
@@ -27,6 +61,7 @@ class Light {
         void set_program(const char* program);
         void set_param(int p, int v);
         void set_params(int* params);
+        int get_param(int p);
         CRGB get_rgb();
         CHSV get_hsv();
         void update();

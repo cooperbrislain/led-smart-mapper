@@ -3,69 +3,30 @@
 #include "light.h"
 #include "config.h"
 
-Light::Light() {
-    _color = CRGB::White;
-    _onoff = 0;
-    _num_leds = 0;
-    _speed = 1;
-    _name = "light";
-    _prog = &Light::_prog_solid;
-    _count = 0;
-}
-
-Light::Light(String name, CRGB* leds, int offset, int num_leds, int inverse) {
-    _color = CRGB::White;
-    _onoff = 0;
-    _num_leds = num_leds;
-    _speed = 1;
-    _leds = new CRGB*[num_leds];
-    for (int i=0; i<num_leds; i++) {
-        _leds[i] = inverse? &leds[offset+num_leds-i-1] : &leds[offset+i];
-    }
-    _offset = offset;
-    _name = name;
-    _prog = &Light::_prog_solid;
-    _count = 0;
-}
-
-Light::Light(String name, CRGB** leds) {
-    _color = CRGB::White;
-    _name = name;
-    _offset = 0;
-    _onoff = 0;
-    _num_leds = sizeof(leds);
-    _leds = new CRGB*[_num_leds];
-    for (int i=0; i<sizeof(leds); i++) {
-        _leds[i] = leds[i];
-    }
-    _prog = &Light::_prog_solid;
-    _count = 0;
-}
-
 void Light::subscribe(PubSubClient *mqtt_client) {
     char device[128];
     sprintf(device, "/%s/%s", DEVICE_NAME, _name.c_str());
     String feed = device;
     if (!mqtt_client->connected()) {
-        Serial.println("Not Connected");
+//        Serial.println("Not Connected");
     } else if(!mqtt_client->subscribe(feed.c_str())) {
-        Serial.print("Failed to subscribe to feed: ");
-        Serial.println(feed);
+//        Serial.print("Failed to subscribe to feed: ");
+//        Serial.println(feed);
     } else {
-        Serial.print("Subscribed to feed: ");
-        Serial.println(feed);
+//        Serial.print("Subscribed to feed: ");
+//        Serial.println(feed);
     }
 }
 
 void Light::update() {
-    (this->*_prog)(_params[0]);
+    (this->*_prog)(_params[1]||0);
     _count++;
 }
 
 void Light::turn_on() {
     #ifdef FADE
         _prog = &Light::_prog_fadein;
-        _params[0] = FADE;
+        _params[1] = FADE;
     #endif
     _onoff = 1;
     update();
@@ -75,12 +36,16 @@ void Light::turn_off() {
     if(_onoff) {
         #ifdef FADE
             _prog = &Light::_prog_fadeout;
-            _params[0] = FADE;
+            _params[1] = FADE;
         #else
             _onoff = 0;
         #endif
         update();
     }
+}
+
+void Light::set_on(int onoff) {
+    _onoff = onoff;
 }
 
 void Light::blink() {
@@ -108,38 +73,32 @@ void Light::toggle() {
 
 void Light::set_rgb(CRGB color) {
     _color = color;
-    update();
 }
 
 void Light::set_hue(int val) {
     CHSV hsv_color = get_hsv();
     hsv_color.h = val;
     set_hsv(hsv_color);
-    update();
 }
 
 void Light::set_brightness(int val) {
     CHSV hsv_color = get_hsv();
     hsv_color.v = min(val, 100);
     set_hsv(hsv_color);
-    update();
 }
 
 void Light::set_saturation(int val) {
     CHSV hsv_color = get_hsv();
     hsv_color.s = min(val, 100);
     set_hsv(hsv_color);
-    update();
 }
 
 void Light::set_hsv(int hue, int sat, int val) {
     _color = CHSV(hue, sat, val);
-    update();
 }
 
 void Light::set_hsv(CHSV color) {
     _color = color;
-    update();
 }
 
 CHSV Light::get_hsv() {
@@ -178,8 +137,8 @@ void Light::set_param(int p, int v) {
     _params[p] = v;
 }
 
-void Light::set_speed(int s) {
-    _speed = s;
+int Light::get_param(int p) {
+    return _params[p];
 }
 
 const char* Light::get_name() {
@@ -223,7 +182,7 @@ int Light::_prog_fadeout(int x) {
 }
 
 int Light::_prog_chase(int x) {
-    // params: 1: Chase Speed
+    // params: 0: Chase Speed
     //         1: Fade Speed
     _prog_fade(_params[1]);
     *_leds[_count%_num_leds] = _color;
@@ -231,7 +190,7 @@ int Light::_prog_chase(int x) {
 }
 
 int Light::_prog_warm(int x) {
-    if (_count%7 == 0) _prog_fade(1);
+    if (_count%7 == 0) _prog_fade(10);
 
     if (_count%11 == 0) {
         _index = random(_num_leds);
