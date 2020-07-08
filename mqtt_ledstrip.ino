@@ -151,17 +151,17 @@ void setup() {
 //        lights[3] = Light("right", &leds[1], 50, 25); // RIGHT
 //        lights[4] = Light("rear", &leds[1], 75, 25); // REAR
         /* Test setup */
-        lights[1] = Light("front", &leds[1], 6, 8);
-        lights[2] = Light("left", &leds[1], 2, 4);
-        lights[3] = Light("right", &leds[1], 14, 4);
-        CRGB* rearLeds[4] = { &leds[1], &leds[2], &leds[18], &leds[19] };
+        lights[1] = Light("front", &leds[1], 12, 13);
+        lights[2] = Light("left", &leds[1], 0, 10);
+        lights[3] = Light("right", &leds[1], 25, 10);
+        CRGB* rearLeds[4] = { &leds[10], &leds[11], &leds[23], &leds[24] };
         lights[4] = Light("rear", rearLeds);
 
-        lights[1].set_program("chase");
-        lights[1].set_rgb(CRGB::Orange);
         lights[2].set_program("chase");
         lights[2].set_rgb(CRGB::Orange);
-        lights[3].set_rgb(CRGB::Red);
+        lights[3].set_program("chase");
+        lights[3].set_rgb(CRGB::Orange);
+        lights[4].set_rgb(CRGB::Red);
     #endif
 
     for (Light light : lights) {
@@ -172,24 +172,24 @@ void setup() {
 
     #ifdef TOUCH
         controls[0] = TouchControl("left", T1, TOUCH_THRESHOLD,
-            [](int val) { lights[1].turn_on(); },
-            [](int val) { },
-            [](int val) { lights[1].turn_off(); }
-        );
-        controls[1] = TouchControl("right", T0, TOUCH_THRESHOLD,
             [](int val) { lights[2].turn_on(); },
             [](int val) { },
             [](int val) { lights[2].turn_off(); }
         );
-        controls[2] = TouchControl("Green", T4, TOUCH_THRESHOLD,
-            [](int val) { lights[0].turn_on(); },
+        controls[1] = TouchControl("right", T0, TOUCH_THRESHOLD,
+            [](int val) { lights[3].turn_on(); },
             [](int val) { },
-            [](int val) { lights[0].turn_off(); }
+            [](int val) { lights[3].turn_off(); }
+        );
+        controls[2] = TouchControl("Green", T4, TOUCH_THRESHOLD,
+            [](int val) { lights[1].turn_on(); },
+            [](int val) { },
+            [](int val) { lights[1].turn_off(); }
         );
         controls[3] = TouchControl("Red", T3, TOUCH_THRESHOLD,
+            [](int val) { lights[4].turn_on(); },
             [](int val) { },
-            [](int val) { },
-            [](int val) { }
+            [](int val) { lights[4].turn_off(); }
         );
     #endif
 
