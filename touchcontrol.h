@@ -44,8 +44,8 @@ class TouchControl {
             _pin { pin },
             _threshold { threshold },
             _pressFn { pressFn },
-            _releaseFn { releaseFn },
-            _stilldownFn { stilldownFn }
+            _stilldownFn { stilldownFn },
+            _releaseFn { releaseFn }
         { };
         TouchControl(String name, int pin, int threshold);
         int  get_state();

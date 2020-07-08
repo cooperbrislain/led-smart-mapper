@@ -15,10 +15,12 @@ TouchControl::TouchControl(String name, int pin, int threshold) {
 
 void TouchControl::update() {
     int val = touchRead(_pin);
-    Serial.print("pin ");
-    Serial.print(_pin);
-    Serial.print(": ");
-    Serial.println(val);
+    #ifdef DEBUG
+        Serial.print("pin ");
+        Serial.print(_pin);
+        Serial.print(": ");
+        Serial.println(val);
+    #endif
     if (val <= _threshold) {
         _pressed++;
         if (_pressed == 10) _pressFn(val);

@@ -63,14 +63,22 @@ void Light::update() {
 }
 
 void Light::turn_on() {
-    _prog = &Light::_prog_fadein;
+    #ifdef FADE
+        _prog = &Light::_prog_fadein;
+        _params[0] = FADE;
+    #endif
     _onoff = 1;
     update();
 }
 
 void Light::turn_off() {
     if(_onoff) {
-        _prog = &Light::_prog_fadeout;
+        #ifdef FADE
+            _prog = &Light::_prog_fadeout;
+            _params[0] = FADE;
+        #else
+            _onoff = 0;
+        #endif
         update();
     }
 }
@@ -197,7 +205,7 @@ int Light::_prog_fade(int x) {
 int Light::_prog_fadein(int x) {
     bool still_fading = false;
     for(int i=0; i<_num_leds; i++) {
-        *_leds[i] = fadeTowardColor(*_leds[i], _color, 2);
+        *_leds[i] = fadeTowardColor(*_leds[i], _color, x);
         if (*_leds[i] != _color) still_fading = true;
     }
     if (!still_fading) _prog = &Light::_prog_solid;
@@ -207,7 +215,7 @@ int Light::_prog_fadein(int x) {
 int Light::_prog_fadeout(int x) {
     bool still_fading = false;
     for(int i=0; i<_num_leds; i++) {
-        _leds[i]->fadeToBlackBy(2);
+        _leds[i]->fadeToBlackBy(x);
         if (*_leds[i]) still_fading = true;
     }
     if (!still_fading) _onoff = false;

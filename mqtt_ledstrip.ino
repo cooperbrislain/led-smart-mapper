@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include "defs.h"
+
 #include <SPI.h>
 #include <FastLED.h>
 
@@ -144,18 +146,17 @@ void setup() {
     #ifdef BUMP_LED
         lights[0] = Light("bump", &leds[0], 0, 1);
     #endif
-        lights[1] = Light("front", &leds[1], 0, 25); // FRONT
-        lights[2] = Light("left", &leds[1], 25, 25, 25); // LEFT
-        lights[3] = Light("right", &leds[1], 50, 25); // RIGHT
-        lights[4] = Light("rear", &leds[1], 75, 25); // REAR
+//        lights[1] = Light("front", &leds[1], 0, 25); // FRONT
+//        lights[2] = Light("left", &leds[1], 25, 25, 25); // LEFT
+//        lights[3] = Light("right", &leds[1], 50, 25); // RIGHT
+//        lights[4] = Light("rear", &leds[1], 75, 25); // REAR
         /* Test setup */
-        /*
-        lights[0] = Light("front", &leds[0], 6, 8);
-        lights[1] = Light("left", &leds[0], 2, 4);
-        lights[2] = Light("right", &leds[0], 14, 4);
-        CRGB* rearLeds[4] = { &leds[0], &leds[1], &leds[18], &leds[19] };
-        lights[3] = Light("rear", rearLeds);
-        */
+        lights[1] = Light("front", &leds[1], 6, 8);
+        lights[2] = Light("left", &leds[1], 2, 4);
+        lights[3] = Light("right", &leds[1], 14, 4);
+        CRGB* rearLeds[4] = { &leds[1], &leds[2], &leds[18], &leds[19] };
+        lights[4] = Light("rear", rearLeds);
+
         lights[1].set_program("chase");
         lights[1].set_rgb(CRGB::Orange);
         lights[2].set_program("chase");
@@ -170,33 +171,25 @@ void setup() {
     Serial.println("Light Mapping Initialized");
 
     #ifdef TOUCH
-        controls[0] = TouchControl("left", T0, 18,
-            [](int val) {
-                Serial.println("Left Toggle");
-                lights[1].toggle();
-            },
-            [](int val) {
-                Serial.print("Left Hold ");
-                Serial.println(val);
-            },
-            [](int val) {
-                Serial.print("Left Release ");
-                Serial.println(val);
-            }
+        controls[0] = TouchControl("left", T1, TOUCH_THRESHOLD,
+            [](int val) { lights[1].turn_on(); },
+            [](int val) { },
+            [](int val) { lights[1].turn_off(); }
         );
-        controls[1] = TouchControl("right", T1, 18,
-            [](int val) {
-                Serial.println("Right Toggle");
-                lights[2].toggle();
-            },
-            [](int val) {
-                Serial.print("Right Hold ");
-                Serial.println(val);
-            },
-            [](int val) {
-                Serial.print("Right Release ");
-                Serial.println(val);
-            }
+        controls[1] = TouchControl("right", T0, TOUCH_THRESHOLD,
+            [](int val) { lights[2].turn_on(); },
+            [](int val) { },
+            [](int val) { lights[2].turn_off(); }
+        );
+        controls[2] = TouchControl("Green", T4, TOUCH_THRESHOLD,
+            [](int val) { lights[0].turn_on(); },
+            [](int val) { },
+            [](int val) { lights[0].turn_off(); }
+        );
+        controls[3] = TouchControl("Red", T3, TOUCH_THRESHOLD,
+            [](int val) { },
+            [](int val) { },
+            [](int val) { }
         );
     #endif
 
@@ -267,9 +260,13 @@ void loop() {
     #ifdef TOUCH
         for (int i=0; i<NUM_CONTROLS; i++) controls[i].update();
     #endif
-    for (Light light : lights) light.update();
+    for (int i=0; i<NUM_LIGHTS; i++) lights[i].update();
     FastLED.show();
     count++;
+    Serial.println("======================LOOP======================");
+    #ifdef SLOW
+        delay(SLOW);
+    #endif
     delay(1000/speed);
 }
 
